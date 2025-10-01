@@ -1,0 +1,41 @@
+name: Análise de Pull Requests em Múltiplos Repos (Python)
+
+on:
+  workflow_dispatch:
+    inputs:
+      repos_file:
+        description: 'Caminho para o arquivo JSON de repositórios'
+        required: true
+        default: 'repositorios.json'
+
+jobs:
+  coletar-e-analisar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v3
+
+      - name: Configurar Ambiente Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalar Dependências do Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Coletar os Pull Requests
+        id: collect_pulls
+        run: |
+          python coletar_pull_requests.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOS_FILE: ${{ github.event.inputs.repos_file }}
+
+      - name: Criar Artefato com os Dados Coletados
+        uses: actions/upload-artifact@v3
+        with:
+          name: pull-requests-data
+          path: "*.json"
+          retention-days: 7

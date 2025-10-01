@@ -1,0 +1,22 @@
+[
+  {
+    "owner": "openai",
+    "repo": "whisper",
+    "url": "https://github.com/openai/whisper"
+  },
+  {
+    "owner": "facebook",
+    "repo": "react",
+    "url": "https://github.com/facebook/react"
+  },
+  {
+    "owner": "spring-projects",
+    "repo": "spring-boot",
+    "url": "https://github.com/spring-projects/spring-boot"
+  },
+  {
+    "owner": "backstage",
+    "repo": "backstage",
+    "url": "https://github.com/backstage/backstage"
+  }
+]
