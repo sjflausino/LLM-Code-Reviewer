@@ -31,7 +31,7 @@ jobs:
           python coletar_pull_requests.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPOS_FILE: ${{ github.event.inputs.repos_file }}
+          REPOS_FILE: "repositorios.json"
 
       - name: Criar Artefato com os Dados Coletados
         uses: actions/upload-artifact@v4
