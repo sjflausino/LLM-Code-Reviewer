@@ -33,9 +33,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOS_FILE: ${{ github.event.inputs.repos_file }}
 
+      - name: Extrair os Diffs dos Pull Requests
+        run: |
+          python extrair_diffs.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
       - name: Criar Artefato com os Dados Coletados
         uses: actions/upload-artifact@v4
         with:
           name: pull-requests-data
-          path: "*.json"
+          path: |
+            *.json
+            diffs/
           retention-days: 7
