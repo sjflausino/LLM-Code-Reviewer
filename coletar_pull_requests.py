@@ -2,7 +2,7 @@ import json
 import requests
 import os
 
-# Configure seu Token de Acesso Pessoal do GitHub aqui
+# Configura o Token de Acesso Pessoal do GitHub a partir da variável de ambiente
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 
 def get_pull_requests(owner, repo, token, num_pulls=10):
@@ -33,8 +33,9 @@ def main():
     """
     Função principal para processar a lista de repositórios.
     """
-    # Lê o arquivo de entrada com a lista de repositórios
-    input_file = "repositorios.json"
+    # Define o arquivo de entrada baseado na variável de ambiente (do GitHub Actions) ou usa o padrão
+    input_file = os.getenv('REPOS_FILE', 'repositorios.json')
+    
     try:
         with open(input_file, 'r', encoding='utf-8') as f:
             repositorios = json.load(f)
@@ -64,7 +65,7 @@ def main():
         pull_requests = get_pull_requests(owner, repo_name, GITHUB_TOKEN)
 
         if pull_requests:
-            # Cria o nome do arquivo de saída
+            # Cria o nome do arquivo de saída no formato owner_repo_pulls.json
             output_file_name = f"{owner}_{repo_name}_pulls.json"
             
             # Salva os dados em um novo arquivo JSON

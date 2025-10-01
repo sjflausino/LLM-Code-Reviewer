@@ -28,6 +28,7 @@ jobs:
       - name: Coletar os Pull Requests
         id: collect_pulls
         run: |
+          # Gera os arquivos owner_repo_pulls.json
           python coletar_pull_requests.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -35,20 +36,23 @@ jobs:
 
       - name: Extrair os Diffs dos Pull Requests
         run: |
+          # Gera a pasta diffs/ com os arquivos .diff
           python extrair_diffs.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Centralizar os Metadados com Referências aos Diffs
+      - name: Simplificar e Agrupar Metadados (Formato Final)
         run: |
-          python centralizar_dados.py
+          # Gera o arquivo pr_info_simplificado.json no formato agrupado
+          python simplificar_metadados.py
 
       - name: Criar Artefato com os Dados Coletados
         uses: actions/upload-artifact@v4
         with:
           name: pull-requests-data
           path: |
+            # Arquivos brutos JSON, a pasta com todos os diffs e o JSON final simplificado
             *.json
             diffs/
-            dados_centralizados_metadados.json
+            pr_info_simplificado.json 
           retention-days: 7
