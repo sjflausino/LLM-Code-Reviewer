@@ -2,18 +2,9 @@ import json
 import os
 import re
 
-def ler_arquivo_diff(caminho_diff):
-    """
-    Lê e retorna o conteúdo de um arquivo de diff.
-    """
-    if not os.path.exists(caminho_diff):
-        return None
-    with open(caminho_diff, 'r', encoding='utf-8') as f:
-        return f.read()
-
 def main():
     """
-    Função principal para centralizar os dados.
+    Função principal para centralizar os metadados dos PRs com referência aos arquivos de diff.
     """
     dados_centralizados = {"repositorios": []}
     
@@ -24,7 +15,7 @@ def main():
         print("Nenhum arquivo JSON de pull requests encontrado. Certifique-se de que 'coletar_pull_requests.py' foi executado.")
         return
         
-    print("Iniciando a centralização dos dados...")
+    print("Iniciando a centralização dos metadados...")
 
     for pr_file in pr_files:
         print(f"Processando arquivo {pr_file}...")
@@ -54,14 +45,13 @@ def main():
         # Itera sobre cada PR e anexa os dados de diff
         for pr in pull_requests:
             pr_numero = pr['number']
-            caminho_diff = os.path.join("diffs", owner, repo, f"pr_{pr_numero}.diff")
             
-            diff_conteudo = ler_arquivo_diff(caminho_diff)
+            # Constrói o caminho para o arquivo .diff sem ler o conteúdo
+            caminho_diff = os.path.join("diffs", owner, repo, f"pr_{pr_numero}.diff")
             
             # Adiciona os dados do diff ao objeto do PR
             pr['diffs'] = {
-                "caminho_local": caminho_diff,
-                "conteudo": diff_conteudo
+                "caminho_local": caminho_diff
             }
             
             repo_data["pull_requests"].append(pr)
@@ -69,7 +59,7 @@ def main():
         dados_centralizados["repositorios"].append(repo_data)
         
     # Salva o arquivo JSON centralizado
-    output_file = "dados_centralizados.json"
+    output_file = "dados_centralizados_metadados.json"
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(dados_centralizados, f, indent=2, ensure_ascii=False)
         

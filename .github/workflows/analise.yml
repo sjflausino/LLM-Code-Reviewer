@@ -39,7 +39,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Centralizar os Dados de Pull Requests
+      - name: Centralizar os Metadados com Referências aos Diffs
         run: |
           python centralizar_dados.py
 
@@ -50,5 +50,5 @@ jobs:
           path: |
             *.json
             diffs/
-            dados_centralizados.json
+            dados_centralizados_metadados.json
           retention-days: 7
