@@ -39,6 +39,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
+      - name: Centralizar os Dados de Pull Requests
+        run: |
+          python centralizar_dados.py
+
       - name: Criar Artefato com os Dados Coletados
         uses: actions/upload-artifact@v4
         with:
@@ -46,4 +50,5 @@ jobs:
           path: |
             *.json
             diffs/
+            dados_centralizados.json
           retention-days: 7
