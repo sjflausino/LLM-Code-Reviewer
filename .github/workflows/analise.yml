@@ -80,6 +80,7 @@ jobs:
           python resumir_prs.py
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Adicionar Dados de Tecnologia ao JSON
         run: |
