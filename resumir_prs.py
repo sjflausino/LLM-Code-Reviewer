@@ -15,7 +15,7 @@ def get_gemini_summary(diff_content):
 
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        model = genai.GenerativeModel('gemini-2.5-flash')        
         
         prompt = (
             "Você é um assistente de IA focado em análise de código. Sua tarefa é fornecer um resumo claro e conciso das alterações em um Pull Request com base no seguinte diff (código e metadados). O resumo deve focar em:\n"
