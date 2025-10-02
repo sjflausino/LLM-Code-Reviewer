@@ -12,27 +12,39 @@ if not GITHUB_TOKEN:
 if not GEMINI_API_KEY:
     raise ValueError("Erro: A variável de ambiente GEMINI_API_KEY não está definida.")
 
-def get_repo_structure(owner, repo, token, branch='main'):
+def get_repo_structure(owner, repo, token):
     """
-    Busca a estrutura de pastas e arquivos de um repositório no GitHub.
+    Busca a estrutura de pastas e arquivos de um repositório no GitHub,
+    tentando 'main' e 'master' como branches padrão.
     """
-    url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
-    headers = {
-        "Accept": "application/vnd.github.v3+json",
-        "Authorization": f"token {token}"
-    }
+    branches_to_try = ['main', 'master']
     
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        tree = response.json().get('tree', [])
+    for branch in branches_to_try:
+        url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
+        headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": f"token {token}"
+        }
         
-        # Filtra e retorna apenas os caminhos dos arquivos
-        file_paths = [item['path'] for item in tree if item['type'] == 'blob']
-        return file_paths
-    except requests.exceptions.RequestException as e:
-        print(f"Erro ao buscar a estrutura do repositório {owner}/{repo}: {e}")
-        return None
+        try:
+            print(f"-> Tentando buscar branch '{branch}' do repositório {owner}/{repo}...")
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            tree = response.json().get('tree', [])
+            
+            file_paths = [item['path'] for item in tree if item['type'] == 'blob']
+            return file_paths
+            
+        except requests.exceptions.RequestException as e:
+            if response.status_code == 404 and branch == 'main':
+                print(f"   Branch '{branch}' não encontrado. Tentando 'master'...")
+                continue
+            else:
+                print(f"Erro ao buscar a estrutura do repositório {owner}/{repo}: {e}")
+                return None
+    
+    # Retorna None se ambos os branches falharem
+    return None
 
 def infer_tech_with_llm(file_paths):
     """
