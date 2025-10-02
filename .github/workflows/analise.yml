@@ -81,6 +81,12 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
+      - name: Adicionar Dados de Tecnologia ao JSON
+        run: |
+          python integrar_analise.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
       - name: Criar Artefato com Dados Finalizados
         uses: actions/upload-artifact@v4
         with:
