@@ -15,25 +15,46 @@ if not GEMINI_API_KEY:
 def get_repo_structure(owner, repo, token):
     """
     Busca a estrutura de pastas e arquivos de um repositório no GitHub,
-    tentando 'main' e 'master' como branches padrão.
+    limitando-se à raiz e ao primeiro nível de subdiretórios para evitar
+    JSONs muito grandes.
     """
     branches_to_try = ['main', 'master']
+    all_file_paths = []
     
     for branch in branches_to_try:
-        url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
+        # 1. Busca os arquivos da raiz do branch (sem recursividade)
+        url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}"
         headers = {
             "Accept": "application/vnd.github.v3+json",
             "Authorization": f"token {token}"
         }
         
         try:
-            print(f"-> Tentando buscar branch '{branch}' do repositório {owner}/{repo}...")
+            print(f"-> Buscando estrutura do branch '{branch}' do repositório {owner}/{repo}...")
             response = requests.get(url, headers=headers)
             response.raise_for_status()
             tree = response.json().get('tree', [])
             
-            file_paths = [item['path'] for item in tree if item['type'] == 'blob']
-            return file_paths
+            # 2. Processa os itens da raiz
+            for item in tree:
+                if item['type'] == 'blob': # É um arquivo
+                    all_file_paths.append(item['path'])
+                elif item['type'] == 'tree': # É um subdiretório
+                    subdir_path = item['path']
+                    subdir_sha = item['sha']
+                    
+                    # 3. Busca os arquivos dentro do subdiretório
+                    subdir_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{subdir_sha}"
+                    subdir_response = requests.get(subdir_url, headers=headers)
+                    subdir_response.raise_for_status()
+                    subdir_tree = subdir_response.json().get('tree', [])
+                    
+                    for sub_item in subdir_tree:
+                        if sub_item['type'] == 'blob':
+                            full_path = f"{subdir_path}/{sub_item['path']}"
+                            all_file_paths.append(full_path)
+
+            return all_file_paths
             
         except requests.exceptions.RequestException as e:
             if response.status_code == 404 and branch == 'main':
@@ -43,15 +64,16 @@ def get_repo_structure(owner, repo, token):
                 print(f"Erro ao buscar a estrutura do repositório {owner}/{repo}: {e}")
                 return None
     
-    # Retorna None se ambos os branches falharem
-    return None
+    # Retorna uma lista vazia se ambos os branches falharem
+    return []
 
 def infer_tech_with_llm(file_paths):
     """
-    Usa um LLM para inferir a tecnologia e o arquivo de dependências a partir de uma lista de caminhos de arquivos.
+    Usa um LLM para inferir a tecnologia e o arquivo de dependências a partir
+    de uma lista de caminhos de arquivos, com tratamento de erro robusto.
     """
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-2.5-flash')        
+    model = genai.GenerativeModel('gemini-1.5-flash')
     
     # Limita o número de caminhos de arquivo para evitar prompts muito longos
     file_list_truncated = file_paths[:200]
@@ -71,16 +93,36 @@ def infer_tech_with_llm(file_paths):
       "arquivo_dependencias": "requirements.txt"
     }}
 
-    Se não conseguir identificar, use o valor "desconhecido".
+    Se não conseguir identificar ou houver um erro, retorne o seguinte JSON:
+    {{
+      "linguagem": "desconhecido",
+      "arquivo_dependencias": "desconhecido"
+    }}
     """
     
     try:
         response = model.generate_content(prompt)
-        analysis_result = json.loads(response.text)
-        return analysis_result
+        
+        # DEBUG: Imprime o texto bruto da resposta para diagnóstico
+        print(f"   Resposta bruta do Gemini: '{response.text}'")
+        
+        # Verifica se a resposta não está vazia antes de tentar analisar o JSON
+        if response.text and response.text.strip().startswith('{'):
+            analysis_result = json.loads(response.text)
+            return analysis_result
+        else:
+            print("   A resposta do Gemini não é um JSON válido. Retornando padrão.")
+            return {
+                "linguagem": "desconhecido",
+                "arquivo_dependencias": "desconhecido"
+            }
+            
     except Exception as e:
-        print(f"Erro ao chamar a API do Gemini ou ao analisar a resposta: {e}")
-        return None
+        print(f"Erro ao chamar a API do Gemini: {e}")
+        return {
+            "linguagem": "desconhecido",
+            "arquivo_dependencias": "desconhecido"
+        }
 
 def main():
     """
@@ -111,12 +153,12 @@ def main():
             print("Aviso: Objeto de repositório inválido. Pulando...")
             continue
             
-        print(f"-> Buscando estrutura do repositório {owner}/{repo_name}...")
         file_paths = get_repo_structure(owner, repo_name, GITHUB_TOKEN)
         
         if file_paths:
             analysis_result = infer_tech_with_llm(file_paths)
             if analysis_result:
+                # O script de análise agora sempre retorna um dicionário válido
                 repo_info["programming_language"] = analysis_result["linguagem"]
                 repo_info["package_file"] = analysis_result["arquivo_dependencias"]
                 print(f"   Dados adicionados: Linguagem={analysis_result['linguagem']}, Arquivo de Dependências={analysis_result['arquivo_dependencias']}")
