@@ -39,7 +39,7 @@ def infer_tech_with_llm(file_paths):
     Usa um LLM para inferir a tecnologia e o arquivo de dependências a partir de uma lista de caminhos de arquivos.
     """
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')        
     
     # Limita o número de caminhos de arquivo para evitar prompts muito longos
     file_list_truncated = file_paths[:200]
