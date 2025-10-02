@@ -73,7 +73,7 @@ def infer_tech_with_llm(file_paths):
     de uma lista de caminhos de arquivos, com tratamento de erro robusto.
     """
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-2.5-flash')        
+    model = genai.GenerativeModel('gemini-2.5-flash')    
     
     # Limita o número de caminhos de arquivo para evitar prompts muito longos
     file_list_truncated = file_paths[:200]
@@ -106,9 +106,12 @@ def infer_tech_with_llm(file_paths):
         # DEBUG: Imprime o texto bruto da resposta para diagnóstico
         print(f"   Resposta bruta do Gemini: '{response.text}'")
         
+        # Remove o encapsulamento de código markdown, se existir
+        text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
+
         # Verifica se a resposta não está vazia antes de tentar analisar o JSON
-        if response.text and response.text.strip().startswith('{'):
-            analysis_result = json.loads(response.text)
+        if text_to_parse and text_to_parse.strip().startswith('{'):
+            analysis_result = json.loads(text_to_parse)
             return analysis_result
         else:
             print("   A resposta do Gemini não é um JSON válido. Retornando padrão.")
