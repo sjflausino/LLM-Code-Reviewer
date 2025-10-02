@@ -10,7 +10,7 @@ on:
         type: string
 
 jobs:
-  coletar-e-analisar:
+  coletar-e-organizar:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout do Repositório
@@ -27,9 +27,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Coletar os Pull Requests
-        id: collect_pulls
         run: |
-          # Gera os arquivos owner_repo_pulls.json
           python coletar_pull_requests.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -38,23 +36,55 @@ jobs:
 
       - name: Extrair os Diffs dos Pull Requests
         run: |
-          # Gera a pasta diffs/ com os arquivos .diff
           python extrair_diffs.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Simplificar e Agrupar Metadados (Formato Final)
+      - name: Simplificar e Agrupar Metadados
         run: |
-          # Gera o arquivo pr_info_simplificado.json no formato agrupado
           python simplificar_metadados.py
 
-      - name: Criar Artefato com os Dados Coletados
+      - name: Criar Artefato com Dados Coletados
         uses: actions/upload-artifact@v4
         with:
-          name: pull-requests-data
+          name: raw-pr-data
           path: |
-            # Arquivos brutos JSON, a pasta com todos os diffs e o JSON final simplificado
             *.json
             diffs/
-            pr_info_simplificado.json  
+          retention-days: 7
+
+  gerar-resumos:
+    runs-on: ubuntu-latest
+    needs: coletar-e-organizar
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v3
+
+      - name: Configurar Ambiente Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalar Dependências do Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Baixar o Artefato com os Dados
+        uses: actions/download-artifact@v4
+        with:
+          name: raw-pr-data
+
+      - name: Gerar os Resumos do Gemini
+        run: |
+          python resumir_prs.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Criar Artefato com Dados Finalizados
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-pr-data
+          path: |
+            pr_info_simplificado_com_resumo.json
           retention-days: 7
