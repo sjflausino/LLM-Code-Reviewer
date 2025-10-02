@@ -73,7 +73,7 @@ def infer_tech_with_llm(file_paths):
     de uma lista de caminhos de arquivos, com tratamento de erro robusto.
     """
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')        
     
     # Limita o número de caminhos de arquivo para evitar prompts muito longos
     file_list_truncated = file_paths[:200]
