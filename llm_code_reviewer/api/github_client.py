@@ -1,0 +1,66 @@
+import requests
+from .. import config
+
+class GitHubClient:
+    def __init__(self):
+        self.token = config.GITHUB_TOKEN
+        self.headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": f"token {self.token}"
+        }
+
+    def get_pull_requests(self, owner, repo):
+        """Busca os últimos pull requests de um repositório."""
+        # All lines below this are now correctly indented
+        url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
+        params = {
+            "state": "all",
+            "per_page": config.NUM_PULLS,
+            "sort": "updated",
+            "direction": "desc"
+        }
+        try:
+            response = requests.get(url, headers=self.headers, params=params)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"Erro ao buscar pull requests de {owner}/{repo}: {e}")
+            return None
+
+    def get_pr_diff(self, owner, repo, pr_number):
+        """Busca o diff de um pull request específico."""
+        # All lines below this are now correctly indented
+        url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
+        diff_headers = self.headers.copy()
+        diff_headers["Accept"] = "application/vnd.github.v3.diff"
+        try:
+            response = requests.get(url, headers=diff_headers)
+            response.raise_for_status()
+            return response.text
+        except requests.exceptions.RequestException as e:
+            print(f"Erro ao buscar o diff do PR #{pr_number} em {owner}/{repo}: {e}")
+            return None
+
+    def get_repo_structure(self, owner, repo):
+        """Busca a estrutura de arquivos de um repositório (recursivamente)."""
+        # All lines below this are now correctly indented
+        branches_to_try = ['main', 'master']
+        for branch in branches_to_try:
+            url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
+            try:
+                print(f"-> Buscando estrutura de arquivos no branch '{branch}'...")
+                response = requests.get(url, headers=self.headers)
+                response.raise_for_status()
+                tree = response.json().get('tree', [])
+                file_paths = [item['path'] for item in tree if item['type'] == 'blob']
+                return file_paths
+            except requests.exceptions.RequestException as e:
+                if response.status_code == 404:
+                    print(f"  Branch '{branch}' não encontrado. Tentando o próximo...")
+                    continue
+                else:
+                    print(f"Erro ao buscar a estrutura do repositório {owner}/{repo}: {e}")
+                    return []
+        
+        print("!! Nenhum branch padrão ('main' ou 'master') encontrado.")
+        return []
