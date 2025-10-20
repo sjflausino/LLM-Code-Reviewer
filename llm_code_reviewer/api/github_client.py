@@ -1,5 +1,6 @@
 import requests
 from .. import config
+import base64
 
 class GitHubClient:
     def __init__(self):
@@ -64,3 +65,27 @@ class GitHubClient:
         
         print("!! Nenhum branch padrão ('main' ou 'master') encontrado.")
         return []
+
+    def get_file_content(self, owner, repo, file_path):
+            """Busca o conteúdo de um arquivo específico no repositório."""
+            url = f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}"
+            
+            # Tenta com 'main' e 'master' se o branch não for especificado
+            # A API de contents usa o branch padrão automaticamente
+            
+            try:
+                response = requests.get(url, headers=self.headers)
+                response.raise_for_status()
+                data = response.json()
+                
+                if data.get("type") == "file" and data.get("encoding") == "base64":
+                    content_base64 = data.get("content")
+                    content_decoded = base64.b64decode(content_base64).decode("utf-8")
+                    return content_decoded
+                else:
+                    print(f"Erro: O caminho {file_path} não é um arquivo ou não está em base64.")
+                    return None
+                    
+            except requests.exceptions.RequestException as e:
+                print(f"Erro ao buscar o conteúdo do arquivo {file_path} em {owner}/{repo}: {e}")
+                return None

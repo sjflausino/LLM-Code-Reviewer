@@ -7,7 +7,7 @@ venv/
 .venv/
 
 # Arquivos de artefatos gerados pela aplicação
-# Arquivos JSON de saída e intermediários [cite: 2, 8, 11, 33]
+# Arquivos JSON de saída e intermediários 
 pr_info_final.json
 pr_info_simplificado.json
 pr_info_simplificado_com_resumo.json
