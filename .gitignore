@@ -1,2 +1,61 @@
-note.txt
+# Arquivos de configuração de ambiente e segredos
+# Essencial para não vazar chaves de API 
 .env
+*.env
+env/
+venv/
+.venv/
+
+# Arquivos de artefatos gerados pela aplicação
+# Arquivos JSON de saída e intermediários [cite: 2, 8, 11, 33]
+pr_info_final.json
+pr_info_simplificado.json
+pr_info_simplificado_com_resumo.json
+
+# Diretório de dados temporários (diffs baixados) 
+diffs/
+
+# Arquivos de notas pessoais
+note.txt
+
+# --- Padrões do Python ---
+
+# Bytecode compilado
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Pastas de build e distribuição
+build/
+dist/
+*.egg-info/
+*.egg
+wheels/
+
+# Ambientes virtuais (nomes comuns)
+.env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Arquivos de cache e relatórios de testes
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# --- Padrões de SO e IDEs ---
+
+# Mac
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# VSCode
+.vscode/
+
+# PyCharm / IntelliJ
+.idea/
