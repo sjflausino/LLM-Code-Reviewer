@@ -8,6 +8,7 @@ venv/
 
 # Arquivos de artefatos gerados pela aplicação
 # Arquivos JSON de saída e intermediários 
+pr_info_final*.json
 pr_info_final.json
 pr_info_simplificado.json
 pr_info_simplificado_com_resumo.json
