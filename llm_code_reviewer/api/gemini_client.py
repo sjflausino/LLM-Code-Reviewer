@@ -3,10 +3,33 @@ import json
 from .. import config
 
 class GeminiClient:
-    # All methods below are now correctly indented inside the class
     def __init__(self):
         genai.configure(api_key=config.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
+        self.model = genai.GenerativeModel('gemini-2.5-flash') 
+        
+        # --- NOVOS CONTADORES ---
+        self.total_api_calls = 0
+        self.total_tokens = 0
+        # --- FIM DOS NOVOS CONTADORES ---
+
+    def _update_usage(self, response):
+        """Método auxiliar para contabilizar chamadas e tokens."""
+        self.total_api_calls += 1
+        try:
+            # Tenta acessar os metadados de uso da resposta
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                self.total_tokens += response.usage_metadata.total_token_count
+        except Exception as e:
+            # Não quebra a execução se a contagem falhar
+            print(f"Aviso: Não foi possível contabilizar o uso de tokens. Erro: {e}")
+
+    def get_total_calls(self):
+        """Retorna o total de chamadas de API feitas."""
+        return self.total_api_calls
+
+    def get_total_tokens(self):
+        """Retorna o total de tokens consumidos."""
+        return self.total_tokens
 
     def get_summary_from_diff(self, diff_content):
         """Gera um resumo de um diff."""
@@ -19,6 +42,7 @@ class GeminiClient:
         )
         try:
             response = self.model.generate_content(prompt)
+            self._update_usage(response) # <-- NOVO: Contabiliza
             return response.text
         except Exception as e:
             print(f"Erro ao chamar a API do Gemini para resumo: {e}")
@@ -36,12 +60,12 @@ class GeminiClient:
         Sua resposta deve ser estritamente um objeto JSON com duas chaves:
         1. "linguagem": A linguagem principal (ex: "Python", "Java", "JavaScript").
         2. "arquivo_dependencias": O nome do arquivo de dependências (ex: "requirements.txt", "package.json", "pom.xml").
-
         Se não conseguir identificar, retorne: {{"linguagem": "desconhecido", "arquivo_dependencias": "desconhecido"}}
         """
         
         try:
             response = self.model.generate_content(prompt)
+            self._update_usage(response) # <-- NOVO: Contabiliza
             text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
             if text_to_parse:
                 return json.loads(text_to_parse)
@@ -65,14 +89,13 @@ class GeminiClient:
         )
         try:
             response = self.model.generate_content(prompt)
-            # Limpa a resposta para garantir que seja um JSON válido
+            self._update_usage(response) # <-- NOVO: Contabiliza
             text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
             if text_to_parse:
                 return json.loads(text_to_parse)
         except Exception as e:
             print(f"Erro ao chamar a API do Gemini para detectar code smell: {e}") 
 
-        # Retorno padrão em caso de erro
         return {"has_code_smell": False, "justification": "Não foi possível analisar o código devido a um erro."}
 
     def list_specific_code_smells(self, diff_content):
@@ -91,12 +114,11 @@ class GeminiClient:
         )
         try:
             response = self.model.generate_content(prompt)
-            # Limpa a resposta para garantir que seja um JSON válido
-            text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
+            self._update_usage(response) # <-- NOVO: Contabiliza
+            text_to_parse = response.text.strip().removesuffix('```json\n').removesuffix('\n```')
             if text_to_parse:
                 return json.loads(text_to_parse)
         except Exception as e:
             print(f"Erro ao chamar a API do Gemini para listar code smells específicos: {e}") 
         
-        # Retorno padrão em caso de erro
-        return []        
+        return []

@@ -1,4 +1,4 @@
-import time  # <-- NOVO: Importa a biblioteca de tempo
+import time 
 
 from ..api.github_client import GitHubClient
 from ..api.gemini_client import GeminiClient
@@ -18,7 +18,7 @@ def _map_ecosystem(dependency_file_name):
 def run_analysis_pipeline(repos_file_path):
     """Executa o pipeline completo: coleta, extrai, simplifica e enriquece os dados."""
     github = GitHubClient()
-    gemini = GeminiClient()
+    gemini = GeminiClient() # Instância única, os contadores são acumulados aqui
     osv = OsvClient()
     
     repositorios = file_handler.load_repos(repos_file_path)
@@ -37,7 +37,6 @@ def run_analysis_pipeline(repos_file_path):
         file_paths = github.get_repo_structure(owner, repo_name)
         tech_info = {"linguagem": "desconhecido", "arquivo_dependencias": "desconhecido"}
         if file_paths:
-            # (Vamos assumir que esta chamada ao Gemini é rápida e focar o tempo no PR)
             tech_info = gemini.infer_tech_from_files(file_paths)
             print(f"-> Tecnologia inferida: {tech_info['linguagem']}")
         
@@ -55,7 +54,6 @@ def run_analysis_pipeline(repos_file_path):
                 
                 if packages:
                     print(f"  -> {len(packages)} pacotes encontrados. Consultando OSV...")
-                    # (Esta é uma chamada de API, mas não é do LLM - RQ2 foca no LLM)
                     vulnerability_report = osv.check_vulnerabilities(packages)
                     print(f"  -> Análise de vulnerabilidades concluída. {len(vulnerability_report)} CVEs encontrados.")
                 else:
@@ -83,32 +81,29 @@ def run_analysis_pipeline(repos_file_path):
             summary = "Resumo não disponível."
             code_smell_analysis = []
             
-            total_llm_time_sec = 0.0  # <-- NOVO: Inicializa o contador de tempo
+            total_llm_time_sec = 0.0 
 
             if diff_content:
                 
-                llm_analysis_start_time = time.time()  # <-- NOVO: Inicia o timer
+                llm_analysis_start_time = time.time()  
                 
                 summary = gemini.get_summary_from_diff(diff_content)
                 
                 # --- LÓGICA DE ANÁLISE DE CODE SMELL ---
-                # 1. Primeira verificação: existe algum code smell?
                 smell_detection_result = gemini.detect_code_smell(diff_content)
                 
-                # 2. Se a primeira verificação for positiva, busca os detalhes
                 if smell_detection_result.get("has_code_smell"):
                     print(f"  -> Code smells detectados no PR #{pr_number}. Justificativa: {smell_detection_result.get('justification')}")
-                    # Chama a segunda função para obter a lista detalhada
                     code_smell_analysis = gemini.list_specific_code_smells(diff_content)
                 else:
                     print(f"   -> Nenhuma detecção de code smell no PR #{pr_number}.")
 
-                llm_analysis_end_time = time.time()  # <-- NOVO: Para o timer
-                total_llm_time_sec = llm_analysis_end_time - llm_analysis_start_time # <-- NOVO: Calcula a duração
+                llm_analysis_end_time = time.time()  
+                total_llm_time_sec = llm_analysis_end_time - llm_analysis_start_time 
                 
                 print(f"  -> Tempo de análise do LLM para o PR #{pr_number}: {total_llm_time_sec:.2f} segundos")
 
-            # 4. Montar a estrutura simplificada do PR, agora incluindo a análise
+            # 4. Montar a estrutura simplificada do PR
             pr_data = {
                 "pr_number": pr['number'],
                 "title": pr['title'],
@@ -116,7 +111,7 @@ def run_analysis_pipeline(repos_file_path):
                 "author": pr['user']['login'],
                 "summary_gemini": summary.strip(),
                 "code_smells": code_smell_analysis,
-                "processing_time_sec": total_llm_time_sec  # <-- NOVO: Adiciona o tempo ao dict
+                "processing_time_sec": total_llm_time_sec 
             }
             processed_prs.append(pr_data)
 
@@ -126,11 +121,29 @@ def run_analysis_pipeline(repos_file_path):
             "repo": repo_name,
             "programming_language": tech_info["linguagem"],
             "package_file": tech_info["arquivo_dependencias"],
-            "vulnerability_report": vulnerability_report, # Adiciona o relatório
+            "vulnerability_report": vulnerability_report,
             "pull_requests": processed_prs
         }
         all_repos_data.append(repo_data)
 
-    # 6. Salvar o resultado final
+    # 6. Salvar o resultado final, incluindo os totais de uso da API
     final_output_path = "pr_info_final.json"
-    file_handler.save_json(all_repos_data, final_output_path)
+    
+    # Obter os totais do cliente Gemini
+    total_calls = gemini.get_total_calls()
+    total_tokens = gemini.get_total_tokens()
+    
+    print(f"\n--- Resumo Global da Análise (LLM) ---")
+    print(f"Total de Chamadas à API Gemini: {total_calls}")
+    print(f"Total de Tokens Gemini Consumidos: {total_tokens}")
+    
+    # Montar o objeto de saída final com a nova estrutura
+    final_data = {
+        "run_summary": {
+            "total_gemini_api_calls": total_calls,
+            "total_gemini_tokens": total_tokens
+        },
+        "repositories": all_repos_data # A lista de repositórios agora está aninhada
+    }
+    
+    file_handler.save_json(final_data, final_output_path)
