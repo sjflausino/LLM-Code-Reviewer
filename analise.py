@@ -1,8 +1,9 @@
 import pandas as pd
 import json
 import time 
+import sys # [MODIFICADO] Adicionado import
 
-def load_data(json_path='pr_info_final.json'):
+def load_data(json_path): # [MODIFICADO] Removido valor padrão
     """Carrega e achata os dados do JSON para análise."""
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
@@ -22,7 +23,8 @@ def load_data(json_path='pr_info_final.json'):
         run_summary = data.get("run_summary", {})
         
         print("\n--- Resumo da Execução (Custo/Tokens) ---")
-        print(f"Total de Chamadas à API Gemini (Execução): {run_summary.get('total_gemini_api_calls', 'N/A')}")
+ 
+       print(f"Total de Chamadas à API Gemini (Execução): {run_summary.get('total_gemini_api_calls', 'N/A')}")
         print(f"Total de Tokens Gemini Consumidos (Execução): {run_summary.get('total_gemini_tokens', 'N/A')}")
         
     elif isinstance(data, list):
@@ -37,7 +39,8 @@ def load_data(json_path='pr_info_final.json'):
     if not repo_list_data:
         print("Aviso: Nenhum dado de repositório encontrado no JSON.")
         # Retorna DataFrames vazios para evitar que o resto do script quebre
-        return pd.DataFrame(columns=['owner', 'repo', 'programming_language', 'pr_number']), pd.DataFrame(columns=['owner', 'repo'])
+    
+    return pd.DataFrame(columns=['owner', 'repo', 'programming_language', 'pr_number']), pd.DataFrame(columns=['owner', 'repo'])
 
 
     # --- Análise de Pull Requests (Code Smells) ---
@@ -73,7 +76,8 @@ def analyze_rq1_code_smells(df_prs, gabarito_path='gabarito_prs.csv'):
         print("Crie-o manualmente com 'owner,repo,pr_number,real_smell_count'")
         return None
         
-    df_merged = pd.merge(
+    
+df_merged = pd.merge(
         df_prs, 
         df_gabarito, 
         on=['owner', 'repo', 'pr_number']
@@ -165,8 +169,7 @@ def analyze_rq5_linguagens(df_merged_prs):
         return
         
     df_merged_prs['acertou_smell'] = (
-        (df_merged_prs['llm_detected_smell'] == True) & (df_merged_prs['real_has_smell'] == True) |
-        (df_merged_prs['llm_detected_smell'] == False) & (df_merged_prs['real_has_smell'] == False)
+        (df_merged_prs['llm_detected_smell'] == True) & (df_merged_prs['real_has_smell'] == True) | (df_merged_prs['llm_detected_smell'] == False) & (df_merged_prs['real_has_smell'] == False)
     )
     
     taxa_acerto_por_linguagem = df_merged_prs.groupby('programming_language')['acertou_smell'].mean()
@@ -194,11 +197,20 @@ def analyze_rq3_rq4_qualitativas(survey_path='survey_respostas.csv'):
 
     if 'prefere_comentario_pr' in df_survey.columns:
         print("Preferência de Integração (RQ4):")
-        print(df_survey['prefere_comentario_pr'].value_counts(normalize=True).apply("{:.1%}".format))
+  
+      print(df_survey['prefere_comentario_pr'].value_counts(normalize=True).apply("{:.1%}".format))
 
 # --- Ponto de Entrada Principal ---
 if __name__ == "__main__":
-    df_prs, df_repos = load_data()
+    
+    # [MODIFICADO] Adiciona verificação de argumentos de linha de comando
+    if len(sys.argv) < 2:
+        print(f"Erro: Forneça o caminho para o arquivo JSON de análise.")
+        print(f"Uso: python {sys.argv[0]} pr_info_final_AAAAMMDD_HHMMSS.json")
+        sys.exit(1)
+        
+    json_file_path = sys.argv[1]
+    df_prs, df_repos = load_data(json_file_path) # [MODIFICADO] Passa o argumento
     
     if df_prs is not None and df_repos is not None:
         # RQ1 e RQ5
@@ -207,9 +219,10 @@ if __name__ == "__main__":
         analyze_rq5_linguagens(df_merged_prs)
         
         # RQ2
-        analyze_rq2_tempo(df_prs)
+       
+ analyze_rq2_tempo(df_prs)
         
         # RQ3 e RQ4 (dependem de um arquivo de survey externo)
         analyze_rq3_rq4_qualitativas()
     else:
-        print("Não foi possível carregar os dados. Encerrando a análise.")
+        print("Não foi possível carregar os dados.Encerrando a análise.")

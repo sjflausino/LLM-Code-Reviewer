@@ -74,6 +74,7 @@ def run_analysis_pipeline(repos_file_path):
         processed_prs = []
         for pr in pull_requests:
             pr_number = pr['number']
+   
             print(f"  -> Analisando PR #{pr_number}...")
             
             # 3. Extrair Diff e Gerar Resumo
@@ -103,12 +104,13 @@ def run_analysis_pipeline(repos_file_path):
                 
                 print(f"  -> Tempo de análise do LLM para o PR #{pr_number}: {total_llm_time_sec:.2f} segundos")
 
-            # 4. Montar a estrutura simplificada do PR
+# 4. Montar a estrutura simplificada do PR
             pr_data = {
                 "pr_number": pr['number'],
                 "title": pr['title'],
                 "url": pr['html_url'],
                 "author": pr['user']['login'],
+           
                 "summary_gemini": summary.strip(),
                 "code_smells": code_smell_analysis,
                 "processing_time_sec": total_llm_time_sec 
@@ -127,8 +129,10 @@ def run_analysis_pipeline(repos_file_path):
         all_repos_data.append(repo_data)
 
     # 6. Salvar o resultado final, incluindo os totais de uso da API
-    final_output_path = "pr_info_final.json"
-    
+    # [MODIFICADO] Gera o timestamp e cria o nome do arquivo dinâmico
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    final_output_path = f"pr_info_final_{timestamp}.json"
+
     # Obter os totais do cliente Gemini
     total_calls = gemini.get_total_calls()
     total_tokens = gemini.get_total_tokens()
