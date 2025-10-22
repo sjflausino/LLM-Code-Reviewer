@@ -18,5 +18,35 @@
     "owner": "backstage",
     "repo": "backstage",
     "url": "https://github.com/backstage/backstage"
+  },
+  {
+    "owner": "Eclipse EE4J",
+    "repo": "eclipselink",
+    "url": "https://github.com/eclipse-ee4j/eclipselink"
+  },
+  {
+    "owner": "hibernate",
+    "repo": "hibernate-orm",
+    "url": "https://github.com/hibernate/hibernate-orm"
+  },
+  {
+    "owner": "apache",
+    "repo": "logging-log4j2",
+    "url": "https://github.com/apache/logging-log4j2"
+  },
+  {
+    "owner": "quarkusio",
+    "repo": "quarkus",
+    "url": "https://github.com/quarkusio/quarkus"
+  },
+  {
+    "owner": "FasterXML",
+    "repo": "jackson-databind",
+    "url": "https://github.com/FasterXML/jackson-databind"
+  },
+  {
+    "owner": "classgraph",
+    "repo": "classgraph",
+    "url": "https://github.com/classgraph/classgraph"
   }
 ]
