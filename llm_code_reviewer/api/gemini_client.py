@@ -1,4 +1,5 @@
 import google.generativeai as genai
+from google.api_core import exceptions
 import json
 from .. import config
 
@@ -41,11 +42,10 @@ class GeminiClient:
             f"```diff\n{diff_content}\n```"
         )
         try:
-            response = self.model.generate_content(prompt)
-            self._update_usage(response) # <-- NOVO: Contabiliza
+            response = self.call_gemini_api(prompt)
             return response.text
         except Exception as e:
-            print(f"Erro ao chamar a API do Gemini para resumo: {e}")
+            print(f"Erro ao gerar resumo: {e}")
             return "Resumo não disponível devido a um erro."
 
     def infer_tech_from_files(self, file_paths):
@@ -64,13 +64,12 @@ class GeminiClient:
         """
         
         try:
-            response = self.model.generate_content(prompt)
-            self._update_usage(response) # <-- NOVO: Contabiliza
+            response = self.call_gemini_api(prompt)
             text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
             if text_to_parse:
                 return json.loads(text_to_parse)
         except Exception as e:
-            print(f"Erro ao chamar a API do Gemini para inferir tecnologia: {e}")
+            print(f"Erro ao inferir tecnologia: {e}")
 
         return {"linguagem": "desconhecido", "arquivo_dependencias": "desconhecido"}
 
@@ -88,13 +87,12 @@ class GeminiClient:
             f"```diff\n{diff_content}\n```"
         )
         try:
-            response = self.model.generate_content(prompt)
-            self._update_usage(response) # <-- NOVO: Contabiliza
+            response = self.call_gemini_api(prompt)
             text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
             if text_to_parse:
                 return json.loads(text_to_parse)
         except Exception as e:
-            print(f"Erro ao chamar a API do Gemini para detectar code smell: {e}") 
+            print(f"Erro ao detectar code smell: {e}") 
 
         return {"has_code_smell": False, "justification": "Não foi possível analisar o código devido a um erro."}
 
@@ -110,15 +108,25 @@ class GeminiClient:
             "- Uma descrição concisa do problema no contexto do código apresentado.\n"
             "- Uma sugestão de como refatorar o código para corrigir o problema.\n\n"
             "Formate sua resposta como uma lista de objetos JSON, com as chaves 'smell_type', 'description' e 'suggestion'.\n\n"
+            "Responda apenas com o JSON, sem texto explicativo, sem Markdown e sem comentários."
             f"```diff\n{diff_content}\n```"
         )
         try:
-            response = self.model.generate_content(prompt)
-            self._update_usage(response) # <-- NOVO: Contabiliza
-            text_to_parse = response.text.strip().removesuffix('```json\n').removesuffix('\n```')
+            response = self.call_gemini_api(prompt)
+            text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
+            print(text_to_parse)
             if text_to_parse:
                 return json.loads(text_to_parse)
         except Exception as e:
-            print(f"Erro ao chamar a API do Gemini para listar code smells específicos: {e}") 
+            print(f"Erro ao listar code smell específicos: {e}")
         
         return []
+    
+    def call_gemini_api(self, prompt):
+        """Chamada genérica à API do Gemini com contabilização de uso."""
+        try:
+            response = self.model.generate_content(prompt)
+            self._update_usage(response)
+            return response
+        except exceptions.GoogleAPICallError as e:
+            print(f"Erro ao chamar API do Gemini: {e}")
