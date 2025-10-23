@@ -1,5 +1,6 @@
 from llm_code_reviewer.config import REPOS_FILE
 from llm_code_reviewer.core.processor import RepositoryProcessor
+import asyncio
 
 def main():
     """
@@ -7,7 +8,7 @@ def main():
     """
     print("--- Iniciando a Análise de Pull Requests ---")
     processor = RepositoryProcessor()
-    processor.run_analysis_pipeline(repos_file_path=REPOS_FILE)
+    asyncio.run(processor.run_analysis_pipeline(repos_file_path=REPOS_FILE))
     print("--- Análise Concluída ---")
 
 if __name__ == "__main__":

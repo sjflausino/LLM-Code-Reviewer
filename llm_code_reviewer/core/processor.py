@@ -1,4 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
 import time 
+import asyncio
 
 from ..api.github_client import GitHubClient
 from ..api.gemini_client import GeminiClient
@@ -114,7 +116,7 @@ class RepositoryProcessor:
             }
         return repo_data
 
-    def run_analysis_pipeline(self, repos_file_path):
+    async def run_analysis_pipeline(self, repos_file_path):
         """Executa o pipeline completo: coleta, extrai, simplifica e enriquece os dados."""
         processor = RepositoryProcessor()
         
@@ -123,12 +125,17 @@ class RepositoryProcessor:
             print("Nenhum repositório para analisar. Encerrando.")
             return
 
-        all_repos_data = []
+        loop = asyncio.get_running_loop()
 
-        for repo_info in repositorios:
-            repo_data = self.process_repository(repo_info)
-            if repo_data:
-                all_repos_data.append(repo_data)
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            tasks = [
+                loop.run_in_executor(executor, self.process_repository, repo_info)
+                for repo_info in repositorios
+            ]
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        all_repos_data = [r for r in results if r]
 
         self.save_pipeline_results(all_repos_data)
 
