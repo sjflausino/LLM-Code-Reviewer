@@ -1,3 +1,4 @@
+import time
 import google.generativeai as genai
 from google.api_core import exceptions
 import json
@@ -61,6 +62,7 @@ class GeminiClient:
         1. "linguagem": A linguagem principal (ex: "Python", "Java", "JavaScript").
         2. "arquivo_dependencias": O nome do arquivo de dependências (ex: "requirements.txt", "package.json", "pom.xml").
         Se não conseguir identificar, retorne: {{"linguagem": "desconhecido", "arquivo_dependencias": "desconhecido"}}
+        "Responda apenas com o JSON, sem texto explicativo, sem Markdown e sem comentários."
         """
         
         try:
@@ -69,7 +71,7 @@ class GeminiClient:
             if text_to_parse:
                 return json.loads(text_to_parse)
         except Exception as e:
-            print(f"Erro ao inferir tecnologia: {e}")
+            print(f"Erro ao inferir tecnologia: {e}, {response.text if 'response' in locals() else 'No response'}")
 
         return {"linguagem": "desconhecido", "arquivo_dependencias": "desconhecido"}
 
@@ -84,6 +86,7 @@ class GeminiClient:
             "Responda estritamente com um objeto JSON contendo duas chaves:\n"
             '1. "has_code_smell": um booleano (true se encontrar algum code smell, false caso contrário).\n'
             '2. "justification": uma justificativa curta (uma única frase) para sua decisão.\n\n'
+            "Responda apenas com o JSON, sem texto explicativo, sem Markdown e sem comentários."
             f"```diff\n{diff_content}\n```"
         )
         try:
@@ -114,7 +117,6 @@ class GeminiClient:
         try:
             response = self.call_gemini_api(prompt)
             text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
-            print(text_to_parse)
             if text_to_parse:
                 return json.loads(text_to_parse)
         except Exception as e:
@@ -125,8 +127,11 @@ class GeminiClient:
     def call_gemini_api(self, prompt):
         """Chamada genérica à API do Gemini com contabilização de uso."""
         try:
+            start = time.time()
             response = self.model.generate_content(prompt)
             self._update_usage(response)
+            end = time.time()
+            print(f"Tempo de resposta da API Gemini: {end - start:.2f} segundos")
             return response
         except exceptions.GoogleAPICallError as e:
             print(f"Erro ao chamar API do Gemini: {e}")
