@@ -45,7 +45,7 @@ class GitHubClient:
     def get_repo_structure(self, owner, repo):
         """Busca a estrutura de arquivos de um repositório (recursivamente)."""
         # All lines below this are now correctly indented
-        branches_to_try = ['main', 'master']
+        branches_to_try = ['main', 'master', 'latest']
         for branch in branches_to_try:
             url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
             try:
