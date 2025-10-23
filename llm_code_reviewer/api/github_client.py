@@ -30,12 +30,11 @@ class GitHubClient:
 
     def get_pr_diff(self, owner, repo, pr_number):
         """Busca o diff de um pull request específico."""
-        # All lines below this are now correctly indented
-        url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
-        diff_headers = self.headers.copy()
-        diff_headers["Accept"] = "application/vnd.github.v3.diff"
+        url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}.diff"
+        # diff_headers = self.headers.copy()
+        # diff_headers["Accept"] = "application/vnd.github.v3.diff"
         try:
-            response = requests.get(url, headers=diff_headers)
+            response = requests.get(url, headers=self.headers)
             response.raise_for_status()
             return response.text
         except requests.exceptions.RequestException as e:
