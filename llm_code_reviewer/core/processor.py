@@ -90,15 +90,7 @@ def run_analysis_pipeline(repos_file_path):
                 
                 summary = gemini.get_summary_from_diff(diff_content)
                 
-                # --- LÓGICA DE ANÁLISE DE CODE SMELL ---
-                smell_detection_result = gemini.detect_code_smell(diff_content)
-                
-                if smell_detection_result.get("has_code_smell"):
-                    print(f"  -> Code smells detectados no PR #{pr_number}. Justificativa: {smell_detection_result.get('justification')}")
-                    code_smell_analysis = gemini.list_specific_code_smells(diff_content)
-                else:
-                    print(f"   -> Nenhuma detecção de code smell no PR #{pr_number}.")
-
+                code_smell_analysis = gemini.list_specific_code_smells(diff_content)
                 llm_analysis_end_time = time.time()  
                 total_llm_time_sec = llm_analysis_end_time - llm_analysis_start_time 
                 
