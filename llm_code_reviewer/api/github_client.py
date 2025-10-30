@@ -30,7 +30,7 @@ class GitHubClient:
 
     def get_pr_diff(self, owner, repo, pr_number):
         """Busca o diff de um pull request específico."""
-        url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}.diff"
+        url = f"https://github.com/{owner}/{repo}/pull/{pr_number}.diff"
         try:
             response = requests.get(url, headers=self.headers)
             response.raise_for_status()
