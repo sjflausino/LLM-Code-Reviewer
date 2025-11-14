@@ -65,7 +65,24 @@ def run_analysis_pipeline(repos_file_path):
         # --- Fim do Bloco de Análise ---
 
         # 2. Coletar Pull Requests
-        pull_requests = github.get_pull_requests(owner, repo_name)
+        #  Verifica se há uma lista de PRs específicos no repo_info
+        specific_pr_numbers = repo_info.get("pull_requests_to_analyze", [])
+        pull_requests = [] # Lista que conterá os PRs a analisar
+
+        if specific_pr_numbers:
+            print(f"-> Modo de análise: PRs específicos. Total: {len(specific_pr_numbers)}")
+            for pr_num in specific_pr_numbers:
+                print(f"  -> Buscando dados do PR #{pr_num}...")
+                pr_data = github.get_specific_pull_request(owner, repo_name, pr_num)
+                if pr_data:
+                    pull_requests.append(pr_data)
+                else:
+                    print(f"  -> Aviso: Não foi possível obter dados para o PR #{pr_num}.")
+        else:
+            print(f"-> Modo de análise: PRs mais recentes (limite definido por NUM_PULLS).")
+            # Comportamento original: busca os últimos PRs
+            pull_requests = github.get_pull_requests(owner, repo_name)
+        
         if not pull_requests:
             print(f"-> Nenhum pull request encontrado para {owner}/{repo_name}. Pulando.")
             continue

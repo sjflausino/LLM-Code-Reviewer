@@ -27,6 +27,17 @@ class GitHubClient:
         except requests.exceptions.RequestException as e:
             print(f"Erro ao buscar pull requests de {owner}/{repo}: {e}")
             return None
+            
+    def get_specific_pull_request(self, owner, repo, pr_number):
+        """Busca um pull request específico pelo número."""
+        url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
+        try:
+            response = requests.get(url, headers=self.headers)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"Erro ao buscar pull request específico #{pr_number} de {owner}/{repo}: {e}")
+            return None
 
     def get_pr_diff(self, owner, repo, pr_number):
         """Busca o diff de um pull request específico."""
