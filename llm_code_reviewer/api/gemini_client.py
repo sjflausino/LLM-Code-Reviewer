@@ -136,13 +136,13 @@ class GeminiClient:
             }
         except Exception as e:
             print(f"Erro na análise do PR: {e}")
-            
+
             return {
                 "summary": "Erro ao gerar análise.",
                 "code_smells": []
             }
     
-    def call_gemini_api(self, prompt):
+    def call_gemini_api(self, prompt, retry_count=0, max_retries=3):
         """Chamada genérica à API do Gemini com contabilização de uso."""
         try:
             start = time.time()
@@ -152,4 +152,29 @@ class GeminiClient:
             print(f"Tempo de resposta da API Gemini: {end - start:.2f} segundos")
             return response
         except exceptions.GoogleAPICallError as e:
+            status = getattr(e, "code", None)
+            message = str(e)
+
+            
+
+            if status == 429 or "quota" in message.lower():
+                print(f"⚠️ Erro 429: Limite de quota atingido. Tentativa {retry_count + 1} de {max_retries}.")
+
+                # Tenta detectar o tipo de quota no corpo da mensagem
+                if "GenerateRequestsPerDayPerProjectPerModel" in message:
+                    # 🚫 Limite diário -> interrompe a aplicação
+                    print("\n🚨 Limite diário de requisições atingido.")
+                    raise
+                
+                # ⏳ Caso seja outra quota (por minuto ou burst)
+                elif retry_count < max_retries:
+                    print("🔁 Limite temporário atingido. Tentando novamente em 60s...")
+                    time.sleep(60)
+                    return self.call_gemini_api(prompt, retry_count + 1, max_retries)
+                else:
+                    print("❌ Número máximo de tentativas atingido. Abortando.")
+                    raise
+
+            # Outros erros da API
             print(f"Erro ao chamar API do Gemini: {e}")
+            raise
