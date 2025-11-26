@@ -75,30 +75,6 @@ class GeminiClient:
 
         return {"linguagem": "desconhecido", "arquivo_dependencias": "desconhecido"}
 
-    def detect_code_smell(self, diff_content):
-        """
-        Analisa um diff para detectar a presença de qualquer code smell.
-        Retorna uma resposta estruturada indicando se um problema foi encontrado.
-        """
-        prompt = (
-            "Você é um especialista em qualidade de código. Analise o diff de código a seguir e identifique "
-            "se ele possui algum 'code smell' (padrões de código problemáticos que indicam fraquezas no design).\n\n"
-            "Responda estritamente com um objeto JSON contendo duas chaves:\n"
-            '1. "has_code_smell": um booleano (true se encontrar algum code smell, false caso contrário).\n'
-            '2. "justification": uma justificativa curta (uma única frase) para sua decisão.\n\n'
-            "Responda apenas com o JSON, sem texto explicativo, sem Markdown e sem comentários."
-            f"```diff\n{diff_content}\n```"
-        )
-        try:
-            response = self.call_gemini_api(prompt)
-            text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
-            if text_to_parse:
-                return json.loads(text_to_parse)
-        except Exception as e:
-            print(f"Erro ao detectar code smell: {e}") 
-
-        return {"has_code_smell": False, "justification": "Não foi possível analisar o código devido a um erro."}
-
     def list_specific_code_smells(self, diff_content):
         """
         Dado um diff que contém code smells, lista e descreve cada um deles.
@@ -123,6 +99,48 @@ class GeminiClient:
             print(f"Erro ao listar code smell específicos: {e}")
         
         return []
+    
+    def analyze_pr_diff(self, diff_content):
+        """
+        Combina Resumo e Análise de Code Smells em um único prompt para economizar requisições.
+        """
+        prompt = (
+            "Você é um especialista em Code Review (Tech Lead). Analise o diff de código abaixo.\n"
+            "Sua saída deve ser ESTRITAMENTE um objeto JSON contendo duas chaves: 'summary' e 'code_smells'.\n\n"
+            
+            "1. 'summary' (string): Um parágrafo único, claro e conciso explicando:\n"
+            "   - O que mudou (alterações principais).\n"
+            "   - Por que mudou (intenção inferida).\n\n"
+            
+            "2. 'code_smells' (lista de objetos): Identifique problemas de qualidade ou vulnerabilidades no código (se houver).\n"
+            "   Para cada item, inclua:\n"
+            "   - 'smell_type': Nome do padrão (ex: Long Method, Magic Number).\n"
+            "   - 'description': Breve descrição contextualizada.\n"
+            "   - 'suggestion': Como refatorar.\n\n"
+            
+            "Se não houver code smells ou vulnerabilidades, retorne uma lista vazia.\n"
+            "Responda apenas com o JSON, sem texto explicativo, sem Markdown e sem comentários."
+            f"DIFF DO CÓDIGO:\n```diff\n{diff_content}\n```"
+        )
+
+        try:
+            response = self.call_gemini_api(prompt)
+            text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
+
+            
+            data = json.loads(text_to_parse)
+            
+            return {
+                "summary": data.get("summary", "Resumo indisponível."),
+                "code_smells": data.get("code_smells", [])
+            }
+        except Exception as e:
+            print(f"Erro na análise do PR: {e}")
+            
+            return {
+                "summary": "Erro ao gerar análise.",
+                "code_smells": []
+            }
     
     def call_gemini_api(self, prompt):
         """Chamada genérica à API do Gemini com contabilização de uso."""

@@ -38,8 +38,11 @@ Para executar este projeto localmente, você precisará de:
     ```json
     [
       {
-        "owner": "dono_do_repo",
-        "repo": "nome_do_repo"
+        "owner": "dono_do_repo", // obrigatório
+        "repo": "nome_do_repo", // obrigatório
+        "url": "https://github.com/path_do_repositorio", // obrigatório
+        "pull_requests": [1, 2, 3], // opcional, default = []
+        "osv_report": "true" // opcional, default = false
       }
     ]
     ```

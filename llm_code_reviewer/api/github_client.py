@@ -10,7 +10,21 @@ class GitHubClient:
             "Authorization": f"token {self.token}"
         }
 
-    def get_pull_requests(self, owner, repo):
+    def get_pull_requests(self, owner, repo, pull_requests_list=[]):
+
+        if pull_requests_list:
+            """Retorna uma lista específica de pull requests."""
+            prs = []
+            for pr_number in pull_requests_list:
+                url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
+                try:
+                    response = requests.get(url, headers=self.headers)
+                    response.raise_for_status()
+                    prs.append(response.json())
+                except requests.exceptions.RequestException as e:
+                    print(f"Erro ao buscar o PR #{pr_number} de {owner}/{repo}: {e}")
+            return prs
+        
         """Busca os últimos pull requests de um repositório."""
         # All lines below this are now correctly indented
         url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
