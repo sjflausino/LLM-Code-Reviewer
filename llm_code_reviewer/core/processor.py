@@ -16,9 +16,9 @@ def _map_ecosystem(dependency_file_name):
         return None
 
 def run_analysis_pipeline(repos_file_path):
-    """Executa o pipeline completo: coleta, extrai, simplifica e enriquece os dados."""
+    """Executa o pipeline completo: prioriza commits se existirem, caso contrário processa PRs."""
     github = GitHubClient()
-    gemini = GeminiClient() # Instância única, os contadores são acumulados aqui
+    gemini = GeminiClient()
     osv = OsvClient()
     
     repositorios = file_handler.load_repos(repos_file_path)
@@ -32,8 +32,96 @@ def run_analysis_pipeline(repos_file_path):
         owner = repo_info.get('owner')
         repo_name = repo_info.get('repo')
         osv_report = repo_info.get('osv_report', '').lower() == 'true'
+        
+        # Obtém listas (pode vir vazia)
         pull_requests = repo_info.get('pull_requests', [])
+        commits = repo_info.get('commits', [])
+
         print(f"\n--- Processando Repositório: {owner}/{repo_name} ---")
+
+        processed_prs = []
+        processed_commits = []
+
+        if commits:
+            print(f"-> Prioridade: Analisando {len(commits)} commits definidos na configuração.")
+            
+            for commit_item in commits:
+                commit_hash = commit_item.get('commit_hash')
+                file_name = commit_item.get('file_name') # Pode ser None
+                
+                print(f"  -> Analisando Commit {commit_hash[:7]}...")
+                
+                diff_content = ""
+                
+                # Se tiver nome de arquivo, busca só o patch dele. Se não, busca o diff do commit inteiro.
+                if file_name:
+                    print(f"    -> Buscando diff apenas para o arquivo: {file_name}")
+                    diff_content = github.get_commit_file_patch(owner, repo_name, commit_hash, file_name)
+                else:
+                    print("    -> Buscando diff completo do commit.")
+                    diff_content = github.get_commit_full_diff(owner, repo_name, commit_hash)
+
+                # 2. Análise do Gemini para Commits
+                total_llm_time_sec = 0.0
+                analysis_result = {"summary": "Sem conteúdo", "code_smells": []}
+
+                if diff_content:
+                    llm_analysis_start_time = time.time()
+                    
+                    analysis_result = gemini.list_commit_code_smells(diff_content)
+                    
+                    llm_analysis_end_time = time.time()
+                    total_llm_time_sec = llm_analysis_end_time - llm_analysis_start_time
+                    print(f"    -> Tempo de análise LLM: {total_llm_time_sec:.2f}s")
+                else:
+                    print("    -> Aviso: Nenhum conteúdo de diff encontrado para analisar.")
+
+                # 3. Montar objeto do Commit
+                commit_data = {
+                    "commit_hash": commit_hash,
+                    "file_analyzed": file_name if file_name else "FULL_COMMIT",
+                    "code_smells": analysis_result,
+                    "processing_time_sec": total_llm_time_sec
+                }
+                processed_commits.append(commit_data)
+
+        # SE NÃO TIVER COMMITS, TENTA OS PULL REQUESTS
+        else :
+            print("-> Nenhum commit específico listado. Buscando Pull Requests...")
+            # 1. Coletar Pull Requests
+            fetched_prs = github.get_pull_requests(owner, repo_name, pull_requests)
+            
+            if not fetched_prs:
+                print("-> Nenhum pull request encontrado no GitHub. Pulando.")
+            else:
+                print(f"-> {len(fetched_prs)} pull requests encontrados.")
+                
+                for pr in fetched_prs:
+                    pr_number = pr['number']
+                    print(f"  -> Analisando PR #{pr_number}...")
+                    
+                    diff_content = github.get_pr_diff(owner, repo_name, pr_number)
+                    total_llm_time_sec = 0.0 
+                    analysis = {"summary": "", "code_smells": []}
+
+                    if diff_content:
+                        llm_analysis_start_time = time.time()  
+                        analysis = gemini.analyze_pr_diff(diff_content) # Método original de PR
+                        llm_analysis_end_time = time.time()  
+                        total_llm_time_sec = llm_analysis_end_time - llm_analysis_start_time 
+                        print(f"    -> Tempo de análise do LLM: {total_llm_time_sec:.2f}s")
+
+                    pr_data = {
+                        "pr_number": pr['number'],
+                        "title": pr['title'],
+                        "url": pr['html_url'],
+                        "author": pr['user']['login'],
+                        "summary_gemini": analysis.get("summary"),
+                        "code_smells": analysis.get("code_smells"),
+                        "processing_time_sec": total_llm_time_sec 
+                    }
+                    processed_prs.append(pr_data)
+
 
         tech_info = {"linguagem": "desconhecido", "arquivo_dependencias": "desconhecido"}
         vulnerability_report = []
@@ -69,57 +157,20 @@ def run_analysis_pipeline(repos_file_path):
                 print(f"-> Nenhuma análise de vulnerabilidade configurada para {dep_file}.")
             # --- Fim do Bloco de Análise ---
 
-        # 2. Coletar Pull Requests
-        pull_requests = github.get_pull_requests(owner, repo_name, pull_requests)
-        if not pull_requests:
-            print(f"-> Nenhum pull request encontrado para {owner}/{repo_name}. Pulando.")
-            continue
-        
-        print(f"-> {len(pull_requests)} pull requests encontrados. Analisando...")
-        processed_prs = []
-        for pr in pull_requests:
-            pr_number = pr['number']
-   
-            print(f"  -> Analisando PR #{pr_number}...")
-            
-            # 3. Extrair Diff e Gerar Resumo
-            diff_content = github.get_pr_diff(owner, repo_name, pr_number)
-            
-            total_llm_time_sec = 0.0 
-
-            if diff_content:
-                
-                llm_analysis_start_time = time.time()  
-
-                analysis = gemini.analyze_pr_diff(diff_content)
-                                
-                llm_analysis_end_time = time.time()  
-                total_llm_time_sec = llm_analysis_end_time - llm_analysis_start_time 
-                
-                print(f"  -> Tempo de análise do LLM para o PR #{pr_number}: {total_llm_time_sec:.2f} segundos")
-
-            # 4. Montar a estrutura simplificada do PR
-            pr_data = {
-                "pr_number": pr['number'],
-                "title": pr['title'],
-                "url": pr['html_url'],
-                "author": pr['user']['login'],
-           
-                "summary_gemini": analysis["summary"],
-                "code_smells": analysis["code_smells"],
-                "processing_time_sec": total_llm_time_sec 
-            }
-            processed_prs.append(pr_data)
-
-        # 5. Montar o objeto final para o repositório
+        # 4. Montar o objeto final para o repositório
         repo_data = {
             "owner": owner,
             "repo": repo_name,
             "programming_language": tech_info["linguagem"],
             "package_file": tech_info["arquivo_dependencias"],
-            "vulnerability_report": vulnerability_report,
-            "pull_requests": processed_prs
+            "vulnerability_report": vulnerability_report
         }
+
+        # Adiciona o campo relevante baseado no que foi processado
+        if processed_commits:
+            repo_data["commits_analysis"] = processed_commits
+        elif processed_prs:
+            repo_data["pull_requests"] = processed_prs
 
         if not osv_report:
             repo_data.pop("programming_language", None)
@@ -128,11 +179,10 @@ def run_analysis_pipeline(repos_file_path):
 
         all_repos_data.append(repo_data)
 
-    # 6. Salvar o resultado final, incluindo os totais de uso da API
+    # 5. Salvar o resultado final
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     final_output_path = f"pr_info_final_{timestamp}.json"
 
-    # Obter os totais do cliente Gemini
     total_calls = gemini.get_total_calls()
     total_tokens = gemini.get_total_tokens()
     
@@ -140,13 +190,12 @@ def run_analysis_pipeline(repos_file_path):
     print(f"Total de Chamadas à API Gemini: {total_calls}")
     print(f"Total de Tokens Gemini Consumidos: {total_tokens}")
     
-    # Montar o objeto de saída final com a nova estrutura
     final_data = {
         "run_summary": {
             "total_gemini_api_calls": total_calls,
             "total_gemini_tokens": total_tokens
         },
-        "repositories": all_repos_data # A lista de repositórios agora está aninhada
+        "repositories": all_repos_data
     }
     
     file_handler.save_json(final_data, final_output_path)

@@ -33,22 +33,6 @@ class GeminiClient:
         """Retorna o total de tokens consumidos."""
         return self.total_tokens
 
-    def get_summary_from_diff(self, diff_content):
-        """Gera um resumo de um diff."""
-        prompt = (
-            "Você é um assistente de IA focado em análise de código. Sua tarefa é fornecer um resumo claro e conciso das alterações em um Pull Request com base no seguinte diff. O resumo deve focar em:\n"
-            "1. **O que foi mudado**: Resumo das principais alterações.\n"
-            "2. **Por que foi mudado**: A intenção por trás da mudança.\n\n"
-            "A resposta deve ser um parágrafo único.\n\n"
-            f"```diff\n{diff_content}\n```"
-        )
-        try:
-            response = self.call_gemini_api(prompt)
-            return response.text
-        except Exception as e:
-            print(f"Erro ao gerar resumo: {e}")
-            return "Resumo não disponível devido a um erro."
-
     def infer_tech_from_files(self, file_paths):
         """Usa o Gemini para inferir a linguagem e o arquivo de dependências a partir de uma lista de arquivos."""
         file_list_truncated = file_paths[:200]
@@ -75,7 +59,7 @@ class GeminiClient:
 
         return {"linguagem": "desconhecido", "arquivo_dependencias": "desconhecido"}
 
-    def list_specific_code_smells(self, diff_content):
+    def list_commit_code_smells(self, diff_content):
         """
         Dado um diff que contém code smells, lista e descreve cada um deles.
         """
