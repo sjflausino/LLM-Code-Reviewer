@@ -38,8 +38,15 @@ Para executar este projeto localmente, você precisará de:
     ```json
     [
       {
-        "owner": "dono_do_repo",
-        "repo": "nome_do_repo"
+        "owner": "dono_do_repo", // obrigatório
+        "repo": "nome_do_repo", // obrigatório
+        "url": "https://github.com/path_do_repositorio", // obrigatório
+        "osv_report": "true", // opcional, default = false
+        "pull_requests": [1, 2, 3], // opcional, default = []
+        "commits": [{ // opcional, se existir pull_requests são ignorados
+          "commitHash" : "hash_do_comit", // obrigatorio, caso for usar commits
+          "fileName" : "caminh completo ex: src/main/app/classe.java" // opcional, caso contrário o diff será o commit inteiro
+        }]
       }
     ]
     ```

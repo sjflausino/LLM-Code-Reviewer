@@ -10,7 +10,22 @@ class GitHubClient:
             "Authorization": f"token {self.token}"
         }
 
-    def get_pull_requests(self, owner, repo):
+    def get_pull_requests(self, owner, repo, pull_requests_list=[]):
+
+        if pull_requests_list:
+            print(f"-> Buscando PRs específicos: {pull_requests_list}")
+            """Retorna uma lista específica de pull requests."""
+            prs = []
+            for pr_number in pull_requests_list:
+                url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
+                try:
+                    response = requests.get(url, headers=self.headers)
+                    response.raise_for_status()
+                    prs.append(response.json())
+                except requests.exceptions.RequestException as e:
+                    print(f"Erro ao buscar o PR #{pr_number} de {owner}/{repo}: {e}")
+            return prs
+        
         """Busca os últimos pull requests de um repositório."""
         # All lines below this are now correctly indented
         url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
@@ -97,3 +112,18 @@ class GitHubClient:
             except requests.exceptions.RequestException as e:
                 print(f"Erro ao buscar o conteúdo do arquivo {file_path} em {owner}/{repo}: {e}")
                 return None
+            
+    def get_commit_file_patch(self, owner, repo, sha, filename):
+        url = f"https://api.github.com/repos/{owner}/{repo}/commits/{sha}"
+        response = requests.get(url, headers=self.headers)
+        if response.status_code == 200:
+            data = response.json()
+            for file in data.get('files', []):
+                if file['filename'] == filename:
+                    return file.get('patch', '') # Retorna o diff específico
+        return None
+
+    def get_commit_full_diff(self, owner, repo, sha):
+        url = f"https://github.com/{owner}/{repo}/commit/{sha}.diff"
+        response = requests.get(url, headers=self.headers)
+        return response.text if response.status_code == 200 else None
