@@ -3,10 +3,9 @@ import google.generativeai as genai
 from google.api_core import exceptions
 import json
 import re
-from .. import config  # <-- [CORREÇÃO 1]: Importa o módulo 'config' inteiro
+from .. import config
 
-# Limite de caracteres para o diff (evita estouro de cota)
-DIFF_TRUNCATE_LIMIT = 20000  
+PROMPT_LIMIT = 250000
 
 class GeminiClient:
     def __init__(self):
@@ -134,7 +133,12 @@ class GeminiClient:
     
     def call_gemini_api(self, prompt, retry_count=0, max_retries=3):
         """Chamada genérica à API do Gemini com contabilização de uso."""
+        # if(self.client.models.count_tokens(model=''gemini-2.5-flash'', contents=[prompt]) > 0):
         try:
+            prompt_tokens = self.model.count_tokens(contents=[prompt]).total_tokens
+            if prompt_tokens > PROMPT_LIMIT:
+                print(f"Aviso: O prompt excede o limite de {PROMPT_LIMIT} tokens. Truncando.")
+                raise ValueError("Prompt muito grande para a API gratuita do Gemini.")
             start = time.time()
             response = self.model.generate_content(prompt)
             self._update_usage(response)
@@ -145,9 +149,8 @@ class GeminiClient:
             status = getattr(e, "code", None)
             message = str(e)
 
-            
-
             if status == 429 or "quota" in message.lower():
+
                 print(f"⚠️ Erro 429: Limite de quota atingido. Tentativa {retry_count + 1} de {max_retries}.")
 
                 # Tenta detectar o tipo de quota no corpo da mensagem
