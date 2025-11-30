@@ -36,10 +36,10 @@ except Exception:
 SONAR_TOKEN = os.environ.get("SONAR_TOKEN")
 SONAR_URL = os.environ.get("SONAR_URL", "http://localhost:9000")
 SONAR_PROJECT_KEY = os.environ.get("SONAR_PROJECT_KEY")
-BASE_REPOS_PATH = os.environ.get("BASE_REPOS_PATH", r"C:\workspace\llm-test")
+BASE_REPOS_PATH = os.environ.get("BASE_REPOS_PATH")
 
 # Maven executable path (you already had this)
-MAVEN_EXECUTABLE_PATH = os.environ.get("MAVEN_EXECUTABLE_PATH", r"C:\Program Files\apache-maven-3.9.9\bin\mvn.cmd")
+MAVEN_EXECUTABLE_PATH = os.environ.get("MAVEN_EXECUTABLE_PATH")
 
 # Sonar scanner path (optional). If empty, script will call "sonar-scanner" and rely on PATH.
 SONAR_SCANNER_PATH = os.environ.get("SONAR_SCANNER_PATH", "")
