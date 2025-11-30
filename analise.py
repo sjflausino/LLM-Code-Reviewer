@@ -1,228 +1,219 @@
 import pandas as pd
 import json
-import time 
-import sys # [MODIFICADO] Adicionado import
+import sys
+import os
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime
 
-def load_data(json_path): # [MODIFICADO] Removido valor padrão
-    """Carrega e achata os dados do JSON para análise."""
+# Configuração de estilo dos gráficos
+sns.set_theme(style="whitegrid")
+
+def load_llm_json(file_path):
+    """Carrega o JSON gerado pela ferramenta LLM-Code-Reviewer."""
     try:
-        with open(json_path, 'r', encoding='utf-8') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-    except FileNotFoundError:
-        print(f"Erro: Arquivo '{json_path}' não encontrado.")
-        return None, None
-    except json.JSONDecodeError:
-        print(f"Erro: Falha ao decodificar o JSON em '{json_path}'.")
-        return None, None
+            
+        # Extrai a lista de repositórios
+        if isinstance(data, dict) and "repositories" in data:
+            repos_data = data["repositories"]
+        else:
+            print("❌ Formato JSON antigo ou inválido. Esperado chave 'repositories'.")
+            return None
 
-    # --- SEÇÃO MODIFICADA: Lendo a nova estrutura do JSON ---
-    repo_list_data = []
-    if isinstance(data, dict):
-        # Nova Estrutura (Dicionário com 'run_summary' e 'repositories')
-        repo_list_data = data.get("repositories", [])
-        run_summary = data.get("run_summary", {})
+        # Normaliza os dados de PRs em um DataFrame Pandas
+        df_prs = pd.json_normalize(
+            repos_data,
+            record_path=['pull_requests'],
+            meta=['owner', 'repo', 'programming_language'],
+            errors='ignore'
+        )
         
-        print("\n--- Resumo da Execução (Custo/Tokens) ---")
- 
-       print(f"Total de Chamadas à API Gemini (Execução): {run_summary.get('total_gemini_api_calls', 'N/A')}")
-        print(f"Total de Tokens Gemini Consumidos (Execução): {run_summary.get('total_gemini_tokens', 'N/A')}")
-        
-    elif isinstance(data, list):
-        # Estrutura antiga (Lista de repos)
-        print("Aviso: JSON em formato antigo (lista). Dados de 'run_summary' (tokens) não disponíveis.")
-        repo_list_data = data
-    else:
-        print("Erro: Formato de JSON inesperado. Esperava um Dicionário ou Lista.")
-        return None, None
-    # --- FIM DA SEÇÃO MODIFICADA ---
+        # Se não houver PRs, tenta carregar commits (caso tenha sido rodado em modo commit)
+        if df_prs.empty and len(repos_data) > 0 and 'commits_analysis' in repos_data[0]:
+            df_prs = pd.json_normalize(
+                repos_data,
+                record_path=['commits_analysis'],
+                meta=['owner', 'repo', 'programming_language'],
+                errors='ignore'
+            )
+           
+            # Renomeia para padronizar com a lógica de PRs
+            if 'commit_hash' in df_prs.columns:
+                df_prs.rename(columns={'commit_hash': 'pr_number'}, inplace=True) 
 
-    if not repo_list_data:
-        print("Aviso: Nenhum dado de repositório encontrado no JSON.")
-        # Retorna DataFrames vazios para evitar que o resto do script quebre
-    
-    return pd.DataFrame(columns=['owner', 'repo', 'programming_language', 'pr_number']), pd.DataFrame(columns=['owner', 'repo'])
-
-
-    # --- Análise de Pull Requests (Code Smells) ---
-    df_prs = pd.json_normalize(
-        repo_list_data, # Usa a lista extraída
-        record_path=['pull_requests'],
-        meta=['owner', 'repo', 'programming_language'] 
-    )
-    
-    # --- Análise de Repositórios (Vulnerabilidades) ---
-    df_repos = pd.json_normalize(repo_list_data) # Usa a lista extraída
-    
-    if 'pull_requests' in df_repos.columns:
-        df_repos = df_repos.drop(columns=['pull_requests'])
-        
-    return df_prs, df_repos
-
-def analyze_rq1_code_smells(df_prs, gabarito_path='gabarito_prs.csv'):
-    """Calcula métricas de detecção de Code Smells (RQ1)."""
-    print("\n--- Análise RQ1 (Code Smells) ---")
-    
-    if df_prs.empty:
-        print("Nenhum dado de PR para analisar (Code Smells). Pulando.")
+        return df_prs
+    except Exception as e:
+        print(f"❌ Erro ao carregar JSON da LLM: {e}")
         return None
-        
-    df_prs['llm_smell_count'] = df_prs['code_smells'].apply(len)
-    df_prs['llm_detected_smell'] = df_prs['llm_smell_count'] > 0
+
+def load_ground_truth(file_path):
+    """Carrega o CSV de Gabarito Manual (A Verdade Absoluta)."""
+    try:
+        # Espera colunas: owner, repo, pr_number, tem_smell_real (bool/int) or gabarito_tem_smell
+        df = pd.read_csv(file_path)
+        # Garante que pr_number seja string para bater com o JSON
+        df['pr_number'] = df['pr_number'].astype(str)
+        return df
+    except Exception as e:
+        print(f"⚠️ Gabarito não encontrado ou inválido ({file_path}). A RQ1 será pulada.")
+        return None
+
+def calcular_metricas_classificacao(df):
+    """Calcula TP, FP, FN, TN, Precisão, Recall e F1."""
+    
+    # Definições:
+    # LLM Diz SIM (True) | Gabarito Diz SIM (True) -> TP
+    # LLM Diz SIM (True) | Gabarito Diz NÃO (False) -> FP
+    # LLM Diz NÃO (False) | Gabarito Diz SIM (True) -> FN
+    # LLM Diz NÃO (False) | Gabarito Diz NÃO (False) -> TN
+
+    tp = len(df[(df['llm_detectou'] == True) & (df['gabarito_tem_smell'] == True)])
+    fp = len(df[(df['llm_detectou'] == True) & (df['gabarito_tem_smell'] == False)])
+    fn = len(df[(df['llm_detectou'] == False) & (df['gabarito_tem_smell'] == True)])
+    tn = len(df[(df['llm_detectou'] == False) & (df['gabarito_tem_smell'] == False)])
+
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+    f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+    accuracy = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) > 0 else 0
+
+    return {
+        "TP": tp, "FP": fp, "FN": fn, "TN": tn,
+        "Precision": precision, "Recall": recall, "F1": f1_score, "Accuracy": accuracy
+    }
+
+def gerar_matriz_confusao(metrics, output_dir):
+    """Gera e salva o gráfico da Matriz de Confusão."""
+    matrix = [[metrics['TN'], metrics['FP']], 
+              [metrics['FN'], metrics['TP']]]
     
     try:
-        df_gabarito = pd.read_csv(gabarito_path)
-    except FileNotFoundError:
-        print(f"Erro: Arquivo de gabarito '{gabarito_path}' não encontrado.")
-        print("Crie-o manualmente com 'owner,repo,pr_number,real_smell_count'")
-        return None
+        plt.figure(figsize=(6, 5))
+        sns.heatmap(matrix, annot=True, fmt='d', cmap='Blues', 
+                    xticklabels=['Não (Real)', 'Sim (Real)'],
+                    yticklabels=['Não (LLM)', 'Sim (LLM)'])
+        plt.xlabel('Ground Truth (Gabarito)')
+        plt.ylabel('Predição da LLM')
+        plt.title('Matriz de Confusão: Detecção de Code Smells')
         
-    
-df_merged = pd.merge(
-        df_prs, 
-        df_gabarito, 
-        on=['owner', 'repo', 'pr_number']
-    )
-    
-    if df_merged.empty:
-        print("Nenhum PR do gabarito foi encontrado nos dados analisados. Verifique os arquivos.")
-        return None
-        
-    df_merged['real_has_smell'] = df_merged['real_smell_count'] > 0
-    
-    tp = ( (df_merged['llm_detected_smell'] == True) & (df_merged['real_has_smell'] == True) ).sum()
-    fp = ( (df_merged['llm_detected_smell'] == True) & (df_merged['real_has_smell'] == False) ).sum()
-    fn = ( (df_merged['llm_detected_smell'] == False) & (df_merged['real_has_smell'] == True) ).sum()
-    tn = ( (df_merged['llm_detected_smell'] == False) & (df_merged['real_has_smell'] == False) ).sum()
-    
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-    
-    print(f"Total de PRs analisados (com gabarito): {len(df_merged)}")
-    print(f"Verdadeiros Positivos (TP): {tp}")
-    print(f"Falsos Positivos (FP):    {fp}")
-    print(f"Falsos Negativos (FN):    {fn}")
-    print(f"Taxa de Detecção (Recall) para Code Smells: {recall:.2%}")
-    print(f"Precisão para Code Smells: {precision:.2%}")
-    
-    return df_merged
+        filename = os.path.join(output_dir, 'matriz_confusao.png')
+        plt.savefig(filename)
+        print(f"📊 Gráfico salvo: {filename}")
+        plt.close()
+    except Exception as e:
+        print(f"⚠️ Erro ao gerar gráfico de matriz: {e}")
 
-def analyze_rq1_cves(df_repos, gabarito_path='gabarito_repos.csv'):
-    """Calcula métricas de detecção de CVEs (RQ1)."""
-    print("\n--- Análise RQ1 (CVEs) ---")
-    
-    if df_repos.empty:
-        print("Nenhum dado de Repositório para analisar (CVEs). Pulando.")
+def analisar_tempo(df, output_dir):
+    """Gera gráficos de análise de tempo (RQ2)."""
+    if 'processing_time_sec' not in df.columns:
         return
-        
-    df_repos['llm_cve_count'] = df_repos['vulnerability_report'].apply(len)
-    df_repos['llm_detected_cve'] = df_repos['llm_cve_count'] > 0
-    
+
     try:
-        df_gabarito = pd.read_csv(gabarito_path)
-    except FileNotFoundError:
-        print(f"Erro: Arquivo de gabarito '{gabarito_path}' não encontrado.")
-        print("Crie-o manualmente com 'owner,repo,real_cve_count'")
-        return
+        plt.figure(figsize=(10, 6))
+        sns.histplot(df['processing_time_sec'], kde=True, bins=15)
+        plt.title('Distribuição do Tempo de Processamento da LLM por PR')
+        plt.xlabel('Tempo (segundos)')
+        plt.ylabel('Frequência')
         
-    df_merged = pd.merge(df_repos, df_gabarito, on=['owner', 'repo'])
+        filename = os.path.join(output_dir, 'distribuicao_tempo.png')
+        plt.savefig(filename)
+        print(f"📊 Gráfico salvo: {filename}")
+        plt.close()
+    except Exception as e:
+        print(f"⚠️ Erro ao gerar gráfico de tempo: {e}")
     
-    if df_merged.empty:
-        print("Nenhum Repositório do gabarito foi encontrado nos dados analisados.")
-        return
-        
-    df_merged['real_has_cve'] = df_merged['real_cve_count'] > 0
-    
-    tp = ( (df_merged['llm_detected_cve'] == True) & (df_merged['real_has_cve'] == True) ).sum()
-    fn = ( (df_merged['llm_detected_cve'] == False) & (df_merged['real_has_cve'] == True) ).sum()
-    
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-    print(f"Total de Repos analisados (com gabarito): {len(df_merged)}")
-    print(f"Taxa de Detecção (Recall) para CVEs: {recall:.2%}")
+    print("\n⏱️  Estatísticas de Tempo (RQ2):")
+    print(df['processing_time_sec'].describe().to_string())
 
-
-def analyze_rq2_tempo(df_prs):
-    """Analisa o tempo de processamento (RQ2)."""
-    print("\n--- Análise RQ2 (Tempo de Processamento) ---")
-    
-    if df_prs.empty:
-        print("Nenhum dado de PR para analisar (Tempo). Pulando.")
-        return
-        
-    if 'processing_time_sec' not in df_prs.columns:
-        print("Aviso: Coluna 'processing_time_sec' não encontrada.")
-        print("Verifique seu 'processor.py' (esta coluna já deveria existir).")
-        return
-        
-    avg_time = df_prs['processing_time_sec'].mean()
-    max_time = df_prs['processing_time_sec'].max()
-    min_time = df_prs['processing_time_sec'].min()
-    
-    print(f"Tempo médio de análise por PR (LLM): {avg_time:.2f} segundos")
-    print(f"Tempo máximo: {max_time:.2f}s | Tempo mínimo: {min_time:.2f}s")
-
-def analyze_rq5_linguagens(df_merged_prs):
-    """Compara a eficácia entre diferentes linguagens (RQ5)."""
-    print("\n--- Análise RQ5 (Comparativo por Linguagem) ---")
-    
-    if df_merged_prs is None or df_merged_prs.empty:
-        print("Análise da RQ5 pulada (depende da RQ1).")
-        return
-        
-    df_merged_prs['acertou_smell'] = (
-        (df_merged_prs['llm_detected_smell'] == True) & (df_merged_prs['real_has_smell'] == True) | (df_merged_prs['llm_detected_smell'] == False) & (df_merged_prs['real_has_smell'] == False)
-    )
-    
-    taxa_acerto_por_linguagem = df_merged_prs.groupby('programming_language')['acertou_smell'].mean()
-    
-    print("Taxa de Acerto (Acurácia) de Code Smells por Linguagem:")
-    print(taxa_acerto_por_linguagem.apply("{:.2%}".format))
-
-def analyze_rq3_rq4_qualitativas(survey_path='survey_respostas.csv'):
-    """Analisa dados de surveys (RQ3 e RQ4)."""
-    print("\n--- Análise RQ3 & RQ4 (Qualitativa / Survey) ---")
-    
-    try:
-        df_survey = pd.read_csv(survey_path)
-    except FileNotFoundError:
-        print(f"Aviso: Arquivo de survey '{survey_path}' não encontrado.")
-        print("Esta análise depende de um CSV com as respostas dos desenvolvedores.")
-        return
-
-    if 'nota_utilidade' in df_survey.columns:
-        print(f"Média da 'Nota de Utilidade' (RQ3): {df_survey['nota_utilidade'].mean():.2f} / 5")
-    
-    if 'confia_na_sugestao' in df_survey.columns:
-        print("Distribuição 'Confia na Sugestão?' (RQ3):")
-        print(df_survey['confia_na_sugestao'].value_counts(normalize=True).apply("{:.1%}".format))
-
-    if 'prefere_comentario_pr' in df_survey.columns:
-        print("Preferência de Integração (RQ4):")
-  
-      print(df_survey['prefere_comentario_pr'].value_counts(normalize=True).apply("{:.1%}".format))
-
-# --- Ponto de Entrada Principal ---
-if __name__ == "__main__":
-    
-    # [MODIFICADO] Adiciona verificação de argumentos de linha de comando
+def main():
     if len(sys.argv) < 2:
-        print(f"Erro: Forneça o caminho para o arquivo JSON de análise.")
-        print(f"Uso: python {sys.argv[0]} pr_info_final_AAAAMMDD_HHMMSS.json")
+        print("Uso: python analise.py <arquivo_resultado_llm.json> [arquivo_gabarito.csv]")
         sys.exit(1)
-        
-    json_file_path = sys.argv[1]
-    df_prs, df_repos = load_data(json_file_path) # [MODIFICADO] Passa o argumento
+
+    json_file = sys.argv[1]
+    gabarito_file = sys.argv[2] if len(sys.argv) > 2 else "gabarito_prs.csv"
     
-    if df_prs is not None and df_repos is not None:
-        # RQ1 e RQ5
-        df_merged_prs = analyze_rq1_code_smells(df_prs)
-        analyze_rq1_cves(df_repos)
-        analyze_rq5_linguagens(df_merged_prs)
+    # Cria diretório para salvar gráficos
+    output_dir = "resultados_analise"
+    os.makedirs(output_dir, exist_ok=True)
+
+    print(f"--- 🚀 Iniciando Análise de: {json_file} ---")
+
+    # 1. Carregar Dados da LLM
+    df_llm = load_llm_json(json_file)
+    if df_llm is None or df_llm.empty:
+        print("Erro: DataFrame vazio ou inválido.")
+        sys.exit(1)
+
+    # Prepara coluna de detecção da LLM (Assumindo que code_smells é uma lista)
+    # Se a lista não for vazia, detectou algo.
+    df_llm['llm_detectou'] = df_llm['code_smells'].apply(lambda x: len(x) > 0 if isinstance(x, list) else False)
+    df_llm['pr_number'] = df_llm['pr_number'].astype(str)
+
+    # 2. Carregar Gabarito (Ground Truth)
+    df_gabarito = load_ground_truth(gabarito_file)
+
+    if df_gabarito is not None:
+        # Faz o MERGE dos dados (Cruza LLM com Gabarito pelo ID do PR)
+        # Atenção: Certifique-se que as colunas 'owner', 'repo', 'pr_number' existem em ambos
+        try:
+            df_final = pd.merge(df_llm, df_gabarito, on=['owner', 'repo', 'pr_number'], how='inner')
+            print(f"\n📈 PRs com Gabarito Correspondente: {len(df_final)}")
+        except KeyError as e:
+            print(f"❌ Erro ao cruzar dados: Coluna {e} faltando no CSV ou JSON.")
+            sys.exit(1)
         
-        # RQ2
-       
- analyze_rq2_tempo(df_prs)
-        
-        # RQ3 e RQ4 (dependem de um arquivo de survey externo)
-        analyze_rq3_rq4_qualitativas()
-    else:
-        print("Não foi possível carregar os dados.Encerrando a análise.")
+        if not df_final.empty:
+            # --- RQ1: Eficácia ---
+            metricas = calcular_metricas_classificacao(df_final)
+            print("\n🏆 Resultados RQ1 (Eficácia da LLM):")
+            print(f"   Precisão: {metricas['Precision']:.2%}")
+            print(f"   Recall:   {metricas['Recall']:.2%}")
+            print(f"   F1-Score: {metricas['F1']:.2%}")
+            print(f"   Acurácia: {metricas['Accuracy']:.2%}")
+            print(f"   (TP={metricas['TP']}, FP={metricas['FP']}, FN={metricas['FN']}, TN={metricas['TN']})")
+            
+            gerar_matriz_confusao(metricas, output_dir)
+            
+            # --- RQ3: Comparação por Linguagem (CORRIGIDO) ---
+            print("\n🌍 Resultados RQ3 (Por Linguagem):")
+            
+            # Filtra apenas colunas necessárias para evitar FutureWarning do Pandas 2.2+
+            # Usa pd.Series no apply para expandir o dicionário em colunas
+            if 'programming_language' in df_final.columns:
+                grouped = df_final.groupby('programming_language')[['llm_detectou', 'gabarito_tem_smell']].apply(
+                    lambda x: pd.Series(calcular_metricas_classificacao(x))
+                )
+                
+                # O resultado do apply acima retorna um DataFrame onde o índice é a linguagem.
+                # Não usamos .items() (que itera colunas), mas sim .iterrows() (que itera linhas).
+                results_lang = []
+                for lang, row in grouped.iterrows():
+                    results_lang.append({
+                        "Linguagem": lang,
+                        "Precision": row['Precision'],
+                        "Recall": row['Recall'],
+                        "F1": row['F1']
+                    })
+                    
+                df_lang = pd.DataFrame(results_lang)
+                print(df_lang.to_string(index=False, formatters={
+                    'Precision': '{:.2%}'.format, 
+                    'Recall': '{:.2%}'.format, 
+                    'F1': '{:.2%}'.format
+                }))
+            else:
+                print("⚠️ Coluna 'programming_language' não encontrada para análise da RQ3.")
+
+        else:
+            print("⚠️ A interseção entre o JSON da LLM e o Gabarito CSV resultou em 0 linhas. Verifique os IDs dos PRs.")
+    
+    # --- RQ2: Tempo (Independe do gabarito) ---
+    analisar_tempo(df_llm, output_dir)
+
+    print(f"\n✅ Análise concluída. Gráficos salvos em: ./{output_dir}")
+
+if __name__ == "__main__":
+    main()

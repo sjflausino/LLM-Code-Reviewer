@@ -2,51 +2,66 @@
   {
     "owner": "openai",
     "repo": "whisper",
-    "url": "https://github.com/openai/whisper"
+    "osv_report": "true",
+    "url": "https://github.com/openai/whisper",
+    "pull_requests": [
+      2677,
+      2696,
+      2691,
+      1362
+    ]
+  },
+  {
+    "owner": "microsoft",
+    "repo": "agent-lightning",
+    "osv_report": "true",
+    "url": "https://github.com/microsoft/agent-lightning",
+    "pull_requests": [
+      306,
+      310,
+      309
+    ]
+  },
+  {
+    "owner": "sjflausino",
+    "repo": "app-vulneravel-python",
+    "osv_report": "true",
+    "url": "https://github.com/sjflausino/app-vulneravel-python",
+    "pull_requests": [
+      1,
+      2
+    ]
   },
   {
     "owner": "facebook",
     "repo": "react",
-    "url": "https://github.com/facebook/react"
+    "osv_report": "true",
+    "url": "https://github.com/facebook/react",
+    "pull_requests": [
+      35226,
+      34518,
+      35202
+    ]
   },
   {
-    "owner": "spring-projects",
-    "repo": "spring-boot",
-    "url": "https://github.com/spring-projects/spring-boot"
+    "owner": "angular",
+    "repo": "angular",
+    "osv_report": "true",
+    "url": "https://github.com/angular/angular",
+    "pull_requests": [
+      65683,
+      63104,
+      65712
+    ]
   },
   {
     "owner": "backstage",
     "repo": "backstage",
-    "url": "https://github.com/backstage/backstage"
-  },
-  {
-    "owner": "eclipse-ee4j",
-    "repo": "eclipselink",
-    "url": "https://github.com/eclipse-ee4j/eclipselink"
-  },
-  {
-    "owner": "hibernate",
-    "repo": "hibernate-orm",
-    "url": "https://github.com/hibernate/hibernate-orm"
-  },
-  {
-    "owner": "apache",
-    "repo": "logging-log4j2",
-    "url": "https://github.com/apache/logging-log4j2"
-  },
-  {
-    "owner": "quarkusio",
-    "repo": "quarkus",
-    "url": "https://github.com/quarkusio/quarkus"
-  },
-  {
-    "owner": "FasterXML",
-    "repo": "jackson-databind",
-    "url": "https://github.com/FasterXML/jackson-databind"
-  },
-  {
-    "owner": "classgraph",
-    "repo": "classgraph",
-    "url": "https://github.com/classgraph/classgraph"
+    "osv_report": "true",
+    "url": "https://github.com/backstage/backstage",
+    "pull_requests": [
+      31912,
+      31837
+    ]
   }
 ]

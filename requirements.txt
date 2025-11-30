@@ -2,3 +2,5 @@ requests
 google-generativeai
 python-dotenv
 pandas
+matplotlib
+seaborn
