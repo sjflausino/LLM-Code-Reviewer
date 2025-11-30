@@ -1,0 +1,176 @@
+{
+  "run_summary": {
+    "total_gemini_api_calls": 11,
+    "total_gemini_tokens": 68129
+  },
+  "repositories": [
+    {
+      "owner": "angular",
+      "repo": "angular",
+      "programming_language": "TypeScript",
+      "package_file": "package.json",
+      "vulnerability_report": [
+        {
+          "package_name": "angular-1.8",
+          "package_version": "1.8",
+          "vulnerability_id": "MAL-2023-8010",
+          "summary": "Sem resumo disponível.",
+          "url": "https://osv.dev/vulnerability/MAL-2023-8010"
+        },
+        {
+          "package_name": "angular-mocks-1.8",
+          "package_version": "1.8",
+          "vulnerability_id": "MAL-2023-94",
+          "summary": "Sem resumo disponível.",
+          "url": "https://osv.dev/vulnerability/MAL-2023-94"
+        },
+        {
+          "package_name": "terser",
+          "package_version": "5.8.0",
+          "vulnerability_id": "GHSA-4wf5-vphf-c2xc",
+          "summary": "Sem resumo disponível.",
+          "url": "https://osv.dev/vulnerability/GHSA-4wf5-vphf-c2xc"
+        },
+        {
+          "package_name": "ws",
+          "package_version": "8.15.0",
+          "vulnerability_id": "GHSA-3h5v-q93c-6h6q",
+          "summary": "Sem resumo disponível.",
+          "url": "https://osv.dev/vulnerability/GHSA-3h5v-q93c-6h6q"
+        },
+        {
+          "package_name": "semver",
+          "package_version": "7.3.5",
+          "vulnerability_id": "GHSA-c2qf-rxjj-qqgw",
+          "summary": "Sem resumo disponível.",
+          "url": "https://osv.dev/vulnerability/GHSA-c2qf-rxjj-qqgw"
+        },
+        {
+          "package_name": "tmp",
+          "package_version": "0.2.3",
+          "vulnerability_id": "GHSA-52f5-9888-hmc6",
+          "summary": "Sem resumo disponível.",
+          "url": "https://osv.dev/vulnerability/GHSA-52f5-9888-hmc6"
+        },
+        {
+          "package_name": "undici",
+          "package_version": "7.0.0",
+          "vulnerability_id": "GHSA-c76h-2ccp-4975",
+          "summary": "Sem resumo disponível.",
+          "url": "https://osv.dev/vulnerability/GHSA-c76h-2ccp-4975"
+        },
+        {
+          "package_name": "undici",
+          "package_version": "7.0.0",
+          "vulnerability_id": "GHSA-cxrh-j4jr-qwg3",
+          "summary": "Sem resumo disponível.",
+          "url": "https://osv.dev/vulnerability/GHSA-cxrh-j4jr-qwg3"
+        }
+      ],
+      "pull_requests": [
+        {
+          "pr_number": 65712,
+          "title": "feat(docs-infra): Adds copy link to anchor functionality",
+          "url": "https://github.com/angular/angular/pull/65712",
+          "author": "SkyZeroZx",
+          "summary_gemini": "Este diff introduz um novo componente Angular, `CopyLinkButton`, para substituir a funcionalidade de 'copiar link' existente em âncoras de cabeçalho, que era baseada em CSS puro. A mudança visa aprimorar a experiência do usuário e a acessibilidade. O novo componente é dinamicamente injetado nos elementos `a.docs-anchor` dentro do `docs-viewer`, fornecendo feedback visual (um ícone de verificação) ao copiar um link. Além disso, foram feitas atualizações para garantir que o texto do botão de cópia não seja incluído no Índice de Conteúdo e que o atributo `aria-label` das âncoras seja mais limpo, removendo tags HTML.",
+          "code_smells": [
+            {
+              "smell_type": "Direct Browser API Access",
+              "description": "O componente `CopyLinkButton` acessa diretamente `window.location.origin` para construir o link a ser copiado. Embora funcional em um ambiente de navegador, isso pode dificultar a testabilidade em ambientes que não são de navegador e pode causar problemas em aplicativos que utilizam Server-Side Rendering (SSR) ou Web Workers.",
+              "suggestion": "Considere injetar o serviço `DOCUMENT` do Angular e acessar `document.location.origin` ou, para maior abstração e compatibilidade com SSR, utilize os serviços `PlatformLocation` ou `Location` do `@angular/common` para obter a URL base. Isso isola o código de APIs globais do navegador e melhora a portabilidade."
+            }
+          ],
+          "processing_time_sec": 16.08668279647827
+        },
+        {
+          "pr_number": 65687,
+          "title": "fix(compiler-cli): avoid allocating an object for signals in production mode",
+          "url": "https://github.com/angular/angular/pull/65687",
+          "author": "crisbeto",
+          "summary_gemini": "Este diff refatora a forma como as `debugNames` são inseridas em chamadas de funções de sinal (como `signal`, `model`, `input`, `computed`, `effect`, `linkedSignal`, `httpResource`) no compilador Angular. A mudança principal consiste em substituir o uso de `Object.assign({}, (ngDevMode ? { debugName: 'name' } : {}))` por um operador de spread direto `...(ngDevMode ? [{ debugName: 'name' }] : [])` ou `...(ngDevMode ? { debugName: 'name' } : {})`. A intenção é otimizar o código gerado em builds de produção, garantindo que o argumento `debugName` (e o objeto/array vazio que o envolvia) seja completamente removido quando `ngDevMode` for falso, resultando em chamadas de função mais enxutas (e.g., `signal('foo')` em vez de `signal('foo', {})`) e melhor 'tree-shaking'. Uma nova função auxiliar `createNgDevModeConditional` foi introduzida para encapsular a lógica condicional do `ngDevMode`.",
+          "code_smells": [],
+          "processing_time_sec": 15.100139141082764
+        },
+        {
+          "pr_number": 65683,
+          "title": "fix(http): enable XSRF protection for same-origin absolute URLs",
+          "url": "https://github.com/angular/angular/pull/65683",
+          "author": "alan-agius4",
+          "summary_gemini": "As principais alterações neste diff envolvem a lógica de proteção XSRF (Cross-Site Request Forgery) no `HttpClient` do Angular. Anteriormente, o interceptor de XSRF ignorava todas as requisições para URLs absolutas. Esta mudança refatora a lógica para que o interceptor ignore apenas requisições que são de **origem cruzada** (cross-origin), enquanto ainda aplica a proteção XSRF para requisições de **mesma origem** (same-origin), mesmo que usem uma URL absoluta ou relativa a protocolo. A intenção é corrigir uma limitação anterior que poderia deixar requisições same-origin desprotegidas se usassem URLs absolutas, aprimorando a segurança e a precisão do mecanismo de proteção XSRF. As mudanças incluem a remoção de uma regex de URL absoluta, a introdução do uso de `PlatformLocation` e do construtor `URL` para determinar a origem da requisição e do aplicativo, e a atualização da documentação e dos testes para refletir este novo comportamento.",
+          "code_smells": [],
+          "processing_time_sec": 6.773099184036255
+        },
+        {
+          "pr_number": 65680,
+          "title": "refactor(core): formatter will only format function objects with the …",
+          "url": "https://github.com/angular/angular/pull/65680",
+          "author": "JeanMeche",
+          "summary_gemini": "Este diff introduz testes unitários para o formatador de sinais (formatter) no módulo `@angular/core/primitives/signals`. As principais alterações incluem a exportação da constante `formatter` no arquivo `formatter.ts` para permitir sua testabilidade, e uma melhoria na função `isSignal` para uma detecção mais robusta de sinais, garantindo que o valor seja uma função antes de verificar a propriedade `SIGNAL`. Um novo arquivo `BUILD.bazel` foi adicionado para configurar os testes, e `formattter.spec.ts` foi criado com testes para verificar a detecção de sinais, a prevenção de falsos positivos (como proxies) e a formatação de sinais com erros.",
+          "code_smells": [],
+          "processing_time_sec": 4.653730392456055
+        },
+        {
+          "pr_number": 65646,
+          "title": "test(core): test bundling of dynamic component creation and bindings",
+          "url": "https://github.com/angular/angular/pull/65646",
+          "author": "leonsenft",
+          "summary_gemini": "Este diff introduz um novo caso de teste para o processo de bundling do Angular. A principal mudança é a adição de uma aplicação Angular de exemplo em `main.ts` que demonstra a criação dinâmica de componentes e diretivas usando `ViewContainerRef.createComponent`, incluindo a passagem de input bindings através da nova função `inputBinding`. O arquivo `BUILD.bazel` correspondente configura a otimização da aplicação e um teste de extração de símbolos, enquanto `bundle.golden_symbols.json` serve como o baseline esperado dos símbolos da aplicação empacotada, garantindo que as construções dinâmicas e os inputs sejam corretamente processados e empacotados pelo compilador Angular.",
+          "code_smells": [],
+          "processing_time_sec": 4.757707357406616
+        },
+        {
+          "pr_number": 64524,
+          "title": "perf(platform-browser): disable styles of removed components instead of removing",
+          "url": "https://github.com/angular/angular/pull/64524",
+          "author": "mattlewis92",
+          "summary_gemini": "Este conjunto de mudanças refatora a forma como os estilos CSS são tratados quando os componentes Angular são destruídos. Em vez de remover completamente os elementos `<style>` ou `<link>` do DOM, o sistema agora os \"desabilita\" usando a propriedade `disabled` dos elementos. Isso foi implementado através da renomeação da flag `REMOVE_STYLES_ON_COMPONENT_DESTROY` para `DISABLE_STYLES_ON_COMPONENT_DESTROY` e pela introdução das funções `disableStyles` e `enableStyles` no `SharedStylesHost`. A intenção é melhorar o desempenho de renderização, evitando a custosa recalcula de estilos e o reflow do layout que ocorrem ao remover e reinserir elementos de estilo, especialmente em cenários onde os componentes são frequentemente criados e destruídos, ou para otimizar a hidratação de estilos gerados no servidor.",
+          "code_smells": [],
+          "processing_time_sec": 7.603191137313843
+        },
+        {
+          "pr_number": 64262,
+          "title": "fix(migrations): preserve transitive NgModule references when pruning",
+          "url": "https://github.com/angular/angular/pull/64262",
+          "author": "SkyZeroZx",
+          "summary_gemini": "O `diff` refatora a lógica de poda de módulos na ferramenta de migração `standalone` do Angular. A mudança principal é a introdução de uma fase de filtragem que evita a remoção de módulos que são transitivamente exportados por outros módulos \"intrinsecamente retidos\". Módulos intrinsecamente retidos são aqueles que utilizam padrões como `ModuleWithProviders` em suas importações ou possuem membros de classe além de construtores vazios, indicando que possuem lógica ou configuração ativa. O objetivo é aumentar a robustez da migração, garantindo que módulos necessários para a funcionalidade do aplicativo, mesmo que apenas por meio de exportações indiretas, não sejam removidos indevidamente.",
+          "code_smells": [],
+          "processing_time_sec": 10.092710018157959
+        },
+        {
+          "pr_number": 63705,
+          "title": "feat(compiler-cli): add check for numeric CSS properties requiring units",
+          "url": "https://github.com/angular/angular/pull/63705",
+          "author": "SkyZeroZx",
+          "summary_gemini": "Este diff introduz um novo diagnóstico estendido no compilador do Angular, `NUMERIC_CSS_PROPERTY_REQUIRES_UNIT`, que alerta os desenvolvedores quando um valor numérico literal é ligado a uma propriedade CSS que exige uma unidade de comprimento (ex: `width`, `height`, `margin`, `padding`). A intenção é capturar erros comuns onde o desenvolvedor especifica um número sem unidade (por exemplo, `[style.width]=\"200\"`), o que o CSS ignora ou interpreta de forma diferente do esperado. A mudança adiciona o novo código de erro e o nome do diagnóstico às suas respectivas enums e arquivos golden, além de um novo arquivo TypeScript contendo a lógica de verificação e testes associados.",
+          "code_smells": [],
+          "processing_time_sec": 9.440539121627808
+        },
+        {
+          "pr_number": 63104,
+          "title": " fix(core/schematics): resolve component import by exact specifier in route lazy-loading migration",
+          "url": "https://github.com/angular/angular/pull/63104",
+          "author": "tomer953",
+          "summary_gemini": "A alteração refatora a lógica de localização da declaração de importação de um componente dentro do arquivo de rota. Anteriormente, a busca era feita de forma genérica usando `getText().includes()`, o que era propenso a erros. A nova implementação é mais robusta e precisa, resolvendo a importação do componente por correspondência exata do especificador, tratando explicitamente importações padrão (default imports), importações nomeadas e aliases (ex: `import { Foo as Bar }`). O objetivo é garantir que o import correto do componente seja identificado, independentemente do seu estilo de importação.",
+          "code_smells": [
+            {
+              "smell_type": "Unhandled Undefined Return / Force Unwrapping",
+              "description": "A variável `componentImport` é atribuída com o resultado do método `find`, que pode retornar `undefined` se nenhuma importação correspondente for encontrada. O operador de asserção não nula (`!`) é usado para forçar o tipo, assumindo que a importação sempre será encontrada. Isso pode levar a um erro em tempo de execução (`TypeError`) se a suposição estiver incorreta.",
+              "suggestion": "Adicione uma verificação explícita para `componentImport` ser `undefined` após a chamada `find`. Se `componentImport` for `undefined`, trate o caso de forma elegante (por exemplo, lançando um erro mais específico, retornando uma condição de falha ou logando a situação) em vez de usar o operador de asserção não nula."
+            }
+          ],
+          "processing_time_sec": 4.073796987533569
+        },
+        {
+          "pr_number": 62533,
+          "title": "fix(common): allow empty string in transfer cache origin mapping cond…",
+          "url": "https://github.com/angular/angular/pull/62533",
+          "author": "eneajaho",
+          "summary_gemini": "A condição de verificação de mapeamento da URL de origem foi ajustada. Anteriormente, a função considerava um valor de mapeamento como 'não encontrado' se fosse avaliado como falso (o que incluía strings vazias). A mudança visa permitir que strings vazias (`''`) sejam tratadas como um mapeamento válido, alterando a condição para verificar estritamente `undefined`, garantindo que apenas origens não presentes no mapa sejam consideradas não mapeadas.",
+          "code_smells": [],
+          "processing_time_sec": 4.959495306015015
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,207 @@
+{
+  "run_summary": {
+    "total_gemini_api_calls": 11,
+    "total_gemini_tokens": 59244
+  },
+  "repositories": [
+    {
+      "owner": "facebook",
+      "repo": "react",
+      "programming_language": "TypeScript",
+      "package_file": "package.json",
+      "vulnerability_report": [
+        {
+          "package_name": "@babel/traverse",
+          "package_version": "7.11.0",
+          "vulnerability_id": "GHSA-67hx-6x53-jw92",
+          "summary": "Sem resumo disponível.",
+          "url": "https://osv.dev/vulnerability/GHSA-67hx-6x53-jw92"
+        },
+        {
+          "package_name": "minimatch",
+          "package_version": "3.0.4",
+          "vulnerability_id": "GHSA-f8q6-p94x-37v3",
+          "summary": "Sem resumo disponível.",
+          "url": "https://osv.dev/vulnerability/GHSA-f8q6-p94x-37v3"
+        },
+        {
+          "package_name": "minimist",
+          "package_version": "1.2.3",
+          "vulnerability_id": "GHSA-xvch-5gv4-984h",
+          "summary": "Sem resumo disponível.",
+          "url": "https://osv.dev/vulnerability/GHSA-xvch-5gv4-984h"
+        },
+        {
+          "package_name": "semver",
+          "package_version": "7.1.1",
+          "vulnerability_id": "GHSA-c2qf-rxjj-qqgw",
+          "summary": "Sem resumo disponível.",
+          "url": "https://osv.dev/vulnerability/GHSA-c2qf-rxjj-qqgw"
+        },
+        {
+          "package_name": "tmp",
+          "package_version": "0.1.0",
+          "vulnerability_id": "GHSA-52f5-9888-hmc6",
+          "summary": "Sem resumo disponível.",
+          "url": "https://osv.dev/vulnerability/GHSA-52f5-9888-hmc6"
+        },
+        {
+          "package_name": "undici",
+          "package_version": "5.28.4",
+          "vulnerability_id": "GHSA-c76h-2ccp-4975",
+          "summary": "Sem resumo disponível.",
+          "url": "https://osv.dev/vulnerability/GHSA-c76h-2ccp-4975"
+        },
+        {
+          "package_name": "undici",
+          "package_version": "5.28.4",
+          "vulnerability_id": "GHSA-cxrh-j4jr-qwg3",
+          "summary": "Sem resumo disponível.",
+          "url": "https://osv.dev/vulnerability/GHSA-cxrh-j4jr-qwg3"
+        }
+      ],
+      "pull_requests": [
+        {
+          "pr_number": 35227,
+          "title": "[test] Fix Error Proxy in Node.js 21+",
+          "url": "https://github.com/facebook/react/pull/35227",
+          "author": "eps1lon",
+          "summary_gemini": "Este diff introduz uma nova lógica no manipulador `get` de um Proxy usado para instâncias de erro em um arquivo de configuração de testes Jest. A alteração visa lidar especificamente com a propriedade 'stack' de objetos `Error`, aparentemente para contornar um problema específico do Node.js ao acessar o stack em erros que foram proxied, conforme indicado por um comentário no código.",
+          "code_smells": [
+            {
+              "smell_type": "Obsolete/Misleading Comment or Justification",
+              "description": "O código adiciona um tratamento especial para a propriedade 'stack' e justifica essa exceção com um comentário que referencia um issue específico do Node.js (`https://github.com/nodejs/node/issues/60862`). No entanto, o link fornecido para o issue resulta em 'Page not found', o que levanta dúvidas sobre a validade, relevância ou atualidade da justificativa para essa lógica especial. Se o problema não existe mais ou o link está incorreto, o código pode estar introduzindo um tratamento desnecessário ou potencialmente incorreto.",
+              "suggestion": "Verificar a validade e a relevância do issue do Node.js referenciado. Se o issue não for mais válido, estiver resolvido ou o link estiver incorreto, o comentário deve ser atualizado ou removido, e a necessidade do tratamento especial para 'stack' deve ser reavaliada. Se o problema persistir, forneça um link válido ou uma explicação clara e autocontida no comentário."
+            },
+            {
+              "smell_type": "Inconsistent Proxy Handling / Potential for Incorrect 'this' Context",
+              "description": "Dentro do `get` trap do Proxy, a propriedade 'stack' é acessada usando `Reflect.get(target, key)` (omitindo o `receiver`), enquanto todas as outras propriedades são acessadas com `Reflect.get(target, key, receiver)`. O `receiver` é crucial para garantir que os accessors (getters/setters) em `target` tenham o `this` vinculado corretamente ao proxy (`receiver`) quando acessados. Se o `stack` fosse um accessor (embora incomum para Error.stack padrão, mas possível em ambientes específicos ou com polyfills), omitir o `receiver` poderia levar a um contexto `this` incorreto ou a um comportamento inesperado, especialmente se a justificativa para essa exceção for inválida ou obsoleta.",
+              "suggestion": "A menos que o problema referenciado (e validado) exija especificamente a omissão do `receiver` para 'stack', o comportamento padrão `return Reflect.get(target, key, receiver);` deve ser aplicado de forma consistente a todas as propriedades para garantir o correto contexto `this` e o comportamento esperado do proxy. Se a exceção for estritamente necessária, o comentário deve explicar claramente por que o `receiver` deve ser omitido e qual problema isso resolve, sem depender de um link externo quebrado."
+            }
+          ],
+          "processing_time_sec": 17.678970336914062
+        },
+        {
+          "pr_number": 35215,
+          "title": "[compiler][snap] Fix for filter mode with nested files, 'error.' prefix",
+          "url": "https://github.com/facebook/react/pull/35215",
+          "author": "josephsavona",
+          "summary_gemini": "Esta mudança remove a função `stripAllExtensions`, que anteriormente removia todas as extensões de um nome de arquivo em um loop. Em vez disso, a lógica para determinar o nome base dos arquivos de teste em `readInputFixtures` e `readOutputFixtures` foi atualizada para utilizar a função `stripExtension` existente. A intenção é consolidar a lógica de remoção de extensão, tornando-a mais explícita e controlada ao especificar as extensões a serem removidas (extensões de entrada e a extensão de snapshot), aumentando a clareza e reutilização de código.",
+          "code_smells": [],
+          "processing_time_sec": 3.8457016944885254
+        },
+        {
+          "pr_number": 35213,
+          "title": "[compiler] Exhaustive deps: extra tests, improve diagnostic",
+          "url": "https://github.com/facebook/react/pull/35213",
+          "author": "josephsavona",
+          "summary_gemini": "O código introduz um campo `loc: SourceLocation` na estrutura de dados `ManualMemoDependency` para aprimorar o rastreamento da localização de origem das dependências. Esta mudança é propagada pelas funções `collectMaybeMemoDependencies` e `validateInferredDep` para popular o novo campo. A principal alteração é uma refatoração significativa na função `validateExhaustiveDependencies`, que agora consolida os diagnósticos de dependências ausentes e extras em uma única mensagem de erro mais abrangente. A lógica de sugestão foi aprimorada para filtrar dependências opcionais e fornecer mensagens de erro mais granulares para diferentes tipos de dependências desnecessárias (como variáveis globais ou caminhos excessivamente precisos), melhorando a clareza e a utilidade dos diagnósticos do compilador. As alterações nos arquivos de teste refletem as novas mensagens de erro e a estrutura de relatório.",
+          "code_smells": [],
+          "processing_time_sec": 6.831389665603638
+        },
+        {
+          "pr_number": 35202,
+          "title": "[compiler] Script to enable a feature by default and update tests",
+          "url": "https://github.com/facebook/react/pull/35202",
+          "author": "josephsavona",
+          "summary_gemini": "Este diff introduz duas novas modificações: a primeira é a adição de um arquivo de configuração `settings.local.json` para uma ferramenta `Claude`, que concede permissão para executar um script específico via Bash. A segunda e principal alteração é a criação de um novo script Node.js, `enable-feature-flag.js`, projetado para automatizar o processo de habilitação de um feature flag no compilador. Este script modifica `Environment.ts` para definir o flag como `true` por padrão, executa a suíte de testes (`yarn snap`), identifica quaisquer testes que falhem com o novo flag habilitado, adiciona uma pragma `@flagName:false` a esses fixtures para desativar o flag localmente, atualiza os snapshots e, finalmente, verifica se todos os testes passam, garantindo que o flag seja habilitado apenas onde não causa regressões inesperadas.",
+          "code_smells": [
+            {
+              "smell_type": "Bug: Undeclared Variable",
+              "description": "A variável `updatedCount` é utilizada na função `main` para rastrear o número de fixtures atualizados, mas não é declarada nem inicializada antes de seu primeiro uso, resultando em um erro em tempo de execução.",
+              "suggestion": "Declare e inicialize `updatedCount` com `let updatedCount = 0;` no início da função `main`."
+            },
+            {
+              "smell_type": "Bug: Incorrect Variable Usage",
+              "description": "Na função `main`, há uma verificação `if (notFoundCount.length !== 0)` que tenta acessar a propriedade `length` de `notFoundCount`, que é uma variável numérica (inicializada como `0`). A intenção era verificar se o array `notFound` tinha elementos, ou seja, `if (notFound.length !== 0)`.",
+              "suggestion": "Altere `if (notFoundCount.length !== 0)` para `if (notFound.length !== 0)` para verificar corretamente se há fixtures não encontrados."
+            },
+            {
+              "smell_type": "Conditional Complexity",
+              "description": "A função `enableFlagInEnvironment` possui uma lógica condicional aninhada e repetitiva para verificar a existência e o estado do feature flag (`default(false)`, `default(true)`, ou não encontrado). Isso torna a leitura e manutenção mais difíceis.",
+              "suggestion": "Refatore a lógica de verificação da existência e estado do flag em funções auxiliares ou estruture as condições de forma mais linear para melhorar a clareza e reduzir a complexidade ciclomaticamente."
+            },
+            {
+              "smell_type": "Long Function / Conditional Complexity",
+              "description": "A função `addPragmaToFixture` contém múltiplas ramificações condicionais (`if/else if/else`) para determinar como e onde adicionar a pragma, dependendo do conteúdo da primeira linha do arquivo (comentário de linha única, comentário de bloco, ou sem comentário). Isso torna a função extensa e com várias responsabilidades.",
+              "suggestion": "Considere refatorar esta função, talvez extraindo a lógica de 'como adicionar a pragma à primeira linha' para funções auxiliares menores, como `addPragmaToSingleLineComment`, `addPragmaToBlockComment`, ou `addPragmaToEmptyLine`, para cada caso específico."
+            }
+          ],
+          "processing_time_sec": 13.286999702453613
+        },
+        {
+          "pr_number": 35190,
+          "title": "[compiler] Allow extraneous non-reactive locals",
+          "url": "https://github.com/facebook/react/pull/35190",
+          "author": "josephsavona",
+          "summary_gemini": "Este diff atualiza a lógica de validação de dependências exaustivas em memoizações manuais, especificamente no arquivo `ValidateExhaustiveDependencies.ts`. As principais alterações incluem uma simplificação e clareza nas definições do que são dependências 'necessárias' (agora focadas exclusivamente em valores reativos) e 'supérfluas' (agora se referindo apenas a globais ou locais reativos não utilizados), afastando-se de considerações sobre 'tipos estáveis'. O objetivo é garantir que a auto-memoização não altere significativamente o comportamento do programa, penalizando memoizações manuais que não eram exaustivas ou que continham dependências desnecessárias. Um novo teste (`useHook7`) foi adicionado para validar este comportamento atualizado.",
+          "code_smells": [
+            {
+              "smell_type": "Dead Code / Debug Flag",
+              "description": "A constante `DEBUG` é definida como `false` e não parece ser utilizada ou configurável em tempo de execução, sugerindo que pode ser código morto ou um remanescente de depuração.",
+              "suggestion": "Remova a constante `DEBUG` se não for mais necessária. Se for uma flag de desenvolvimento, considere torná-la configurável através de variáveis de ambiente ou ferramentas de build, ou remova-a antes de mesclar para `main`."
+            }
+          ],
+          "processing_time_sec": 7.053627967834473
+        },
+        {
+          "pr_number": 35173,
+          "title": "[compiler] Prevent innaccurate derivation recording on FunctionExpressions on no-derived-computation-in-effects",
+          "url": "https://github.com/facebook/react/pull/35173",
+          "author": "jorge-cab",
+          "summary_gemini": "As alterações introduzidas aprimoram a robustez e a correção do processo de validação `ValidateNoDerivedComputationsInEffects_exp` do React Compiler. Foi adicionada uma constante `MAX_FIXPOINT_ITERATIONS` e um contador de iterações para prevenir loops infinitos durante o cálculo do ponto fixo, com uma verificação `CompilerError.invariant` para falha de convergência. Além disso, a função `recordInstructionDerivations` foi modificada para ignorar a gravação de mutações de efeito para `FunctionExpression`s, pois suas mutações são tratadas dentro de seus corpos, evitando o rastreamento impreciso de derivações e resolvendo um caso de borda que causava loops infinitos. Uma verificação `invariant` adicional foi incluída em `buildTreeNode` para garantir que um valor não se auto-referencie como fonte. Essas modificações visam melhorar a estabilidade e a precisão da análise de derivação do compilador, conforme demonstrado pelo novo caso de teste que valida o comportamento corrigido da `FunctionExpression`.",
+          "code_smells": [],
+          "processing_time_sec": 5.2703680992126465
+        },
+        {
+          "pr_number": 35248,
+          "title": "[compiler] Fix computed property keys in object method shorthand",
+          "url": "https://github.com/facebook/react/pull/35248",
+          "author": "lluisemper",
+          "summary_gemini": "O propósito principal desta alteração é corrigir um bug no `babel-plugin-react-compiler` que impedia o tratamento correto de métodos de objeto com chaves computadas. Anteriormente, a função `codegenInstructionValue` sempre definia o sinalizador `computed` como `false` ao gerar uma `FunctionExpression` para tais métodos, o que era incorreto. A mudança agora verifica dinamicamente se a chave da propriedade é do tipo 'computed' (`property.key.kind === 'computed'`), garantindo que o AST gerado reflita com precisão a estrutura do código-fonte. As outras partes do diff adicionam novos testes (`.expect.md`, `.js`, `.tsx`) para cobrir este cenário específico, confirmando que a correção funciona como esperado.",
+          "code_smells": [],
+          "processing_time_sec": 3.1063945293426514
+        },
+        {
+          "pr_number": 35208,
+          "title": "[DevTools] Fix developer tools not working in tabs restricted by CSP",
+          "url": "https://github.com/facebook/react/pull/35208",
+          "author": "mochiya98",
+          "summary_gemini": "Esta alteração introduz um mecanismo robusto de fallback para a avaliação de código JavaScript dentro da janela inspecionada da extensão React DevTools. Anteriormente, `chrome.devtools.inspectedWindow.eval()` podia ser bloqueado por políticas de segurança de conteúdo (CSP). Para contornar isso, o update adiciona um novo \"content script\" (`fallbackEvalContext.js`) que é injetado diretamente no contexto de execução principal da página web. Em conjunto com novos manipuladores de mensagens no \"background script\" (`messageHandlers.js`) e no \"content script\" (`proxy.js`), é estabelecido um canal de comunicação que permite às DevTools enviar solicitações de avaliação diretamente para a página. Uma nova função utilitária `evalInInspectedWindow.js` agora encapsula todas as chamadas `eval` existentes, tentando primeiro o `inspectedWindow.eval` padrão e recorrendo ao novo método baseado em mensagens se ocorrer uma exceção (como um bloqueio de CSP), melhorando significativamente a confiabilidade das funcionalidades das DevTools em diversos ambientes web.",
+          "code_smells": [
+            {
+              "smell_type": "Duplicate String Literals",
+              "description": "Vários literais de string usados como identificadores para fontes e tipos de mensagens (ex: 'devtools-page-eval', 'react-devtools-content-script-eval', 'eval-in-inspected-window') estão duplicados em múltiplos arquivos (ex: `messageHandlers.js`, `proxy.js`, `evalInInspectedWindow.js`). Esta duplicação torna o código mais propenso a erros de digitação e mais difícil de manter, pois uma mudança em um identificador exigiria a atualização em diversos locais.",
+              "suggestion": "Consolidar todos os identificadores de tipo e fonte de mensagem em um único arquivo de constantes (ex: `src/constants/messageTypes.js`). Isso centralizaria as definições, melhoraria a legibilidade e a manutenibilidade do sistema de comunicação da extensão."
+            }
+          ],
+          "processing_time_sec": 14.606147289276123
+        },
+        {
+          "pr_number": 35168,
+          "title": "[react-dom] Keep controlled `<select>` value on form reset",
+          "url": "https://github.com/facebook/react/pull/35168",
+          "author": "eps1lon",
+          "summary_gemini": "Este diff introduz uma correção crucial para o comportamento de reset de formulários em componentes `<select>` controlados pelo React, abordando o problema em que o valor do select não era redefinido corretamente. As mudanças incluem a adição de um novo componente `ControlledSelect` e um `TestCase` relacionado para validação, e a atualização da lógica interna de `ReactDOMSelect` para gerenciar corretamente a propriedade `defaultSelected` em elementos `<option>`, garantindo que o comportamento de reset nativo do HTML funcione como esperado. Além disso, a mensagem de aviso para o uso incorreto da propriedade `selected` em `<option>` foi aprimorada para fornecer mais contexto sobre a interação com o reset de formulário. O componente `_renderNestedSelect` em um arquivo de \"fixtures\" também foi atualizado para testar ou demonstrar a integração com a API `ReactDOMClient` e suas capacidades de renderização.",
+          "code_smells": [
+            {
+              "smell_type": "High Complexity / Test Specific Logic",
+              "description": "A função `_renderNestedSelect` no arquivo de fixtures introduz um padrão de renderização condicional altamente complexo, utilizando `ReactDOM.render` ou `ReactDOMClient.createRoot` em conjunto com `queueMicrotask` e `ReactDOM.flushSync`. Embora essa complexidade possa ser justificável em um ambiente de teste ou fixture para validar comportamentos internos específicos do React (como renderização concorrente ou transições), ela representa uma sobrecarga de complexidade incomum para o desenvolvimento de aplicações padrão, tornando o código mais difícil de entender e manter.",
+              "suggestion": "No contexto de um fixture de teste interno do React, essa complexidade pode ser necessária para garantir a robustez do framework. Contudo, em código de aplicação, um padrão tão intrincado deveria ser revisado e simplificado, talvez garantindo a consistência do ambiente de renderização (e.g., sempre usando `ReactDOMClient`) ou abstraindo a lógica de renderização complexa em uma função auxiliar mais gerenciável, se absolutamente indispensável. Para este caso específico, é mais uma observação do que uma sugestão de refatoração imediata, dada a natureza do arquivo."
+            }
+          ],
+          "processing_time_sec": 12.52172327041626
+        },
+        {
+          "pr_number": 35123,
+          "title": "Improve the detection of changed hooks",
+          "url": "https://github.com/facebook/react/pull/35123",
+          "author": "blazejkustra",
+          "summary_gemini": "Este conjunto de mudanças refatora a forma como as React DevTools detectam e exibem as mudanças nos hooks entre renders, especialmente para o hook `useSyncExternalStore`. Em `ReactDebugHooks.js`, a lógica de depuração para `useSyncExternalStore` foi ajustada para ler o valor diretamente do `hook.memoizedState` em vez de chamar `getSnapshot()` novamente, garantindo que o valor capturado corresponda ao estado usado durante a renderização. No `profilerChangeDescriptions-test.js`, os snapshots de teste foram atualizados para representar coleções de hooks como arrays vazios (`[]`) em vez de `null`, padronizando a saída. A maior parte das mudanças está em `renderer.js`, onde a lógica de detecção de mudanças de hooks foi significativamente refatorada. Foram removidas as funções `isUseSyncExternalStoreHook` e `isHookThatCanScheduleUpdate`, e introduzidas `flattenHooksTree` e uma versão mais robusta de `didStatefulHookChange`. Agora, a detecção de mudanças nos hooks é feita inspecionando o `HooksTree` completo do fiber e, em seguida, nivelando essa árvore para comparar os valores dos hooks, melhorando a precisão na identificação de quais hooks de estado foram alterados, incluindo hooks aninhados ou complexos como `useSyncExternalStore`, `useTransition` e `useActionState`.",
+          "code_smells": [],
+          "processing_time_sec": 9.047889232635498
+        }
+      ]
+    }
+  ]
+}
