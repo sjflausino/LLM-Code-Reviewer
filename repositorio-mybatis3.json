@@ -1,0 +1,12 @@
+[
+    {
+        "owner": "mybatis",
+        "repo": "mybatis-3",
+        "url": "https://github.com/mybatis/mybatis-3",
+        "osv_report": "true",
+        "pull_requests": [
+            3566,
+            3563
+        ]
+    }
+]

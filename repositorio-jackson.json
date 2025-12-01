@@ -1,0 +1,17 @@
+[
+    {
+        "owner": "FasterXML",
+        "repo": "jackson-databind",
+        "url": "https://github.com/FasterXML/jackson-databind",
+        "osv_report": "true",
+        "pull_requests": [
+            5325,
+            5397,
+            5439,
+            5440,
+            5443,
+            5445,
+            5447
+        ]
+    }
+]

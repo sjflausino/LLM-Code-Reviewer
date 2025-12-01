@@ -1,0 +1,13 @@
+[
+    {
+        "owner": "spring-cloud",
+        "repo": "spring-cloud-function",
+        "url": "https://github.com/spring-cloud/spring-cloud-function",
+        "osv_report": "true",
+        "commits": [
+            {
+                "commit_hash": "2aed5abff8d755a87bbdb2423cbd154e0c33c4ad"
+            }
+        ]
+    }
+]

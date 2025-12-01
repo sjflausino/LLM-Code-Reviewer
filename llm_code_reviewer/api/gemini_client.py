@@ -85,7 +85,7 @@ class GeminiClient:
             if text_to_parse:
                 return json.loads(text_to_parse)
         except Exception as e:
-            print(f"Erro ao listar code smell específicos: {e}")
+            print(f"Erro ao listar code smell específicos: {e}, {response.text if 'response' in locals() else 'No response'}")
         
         return []
     
