@@ -1,0 +1,40 @@
+Você é um especialista em Code Review (Tech Lead). Analise o diff de código abaixo.
+Sua saída deve ser ESTRITAMENTE um objeto JSON contendo duas chaves: 'summary' e 'code_smells'.
+
+1. 'summary' (string): Um parágrafo único, claro e conciso explicando:
+   - O que mudou (alterações principais).
+   - Por que mudou (intenção inferida).
+
+2. 'code_smells' (lista de objetos): Identifique problemas de qualidade ou vulnerabilidades no código (se houver).
+   Para cada item, inclua:
+   - 'smell_type': Nome do padrão (ex: Long Method, Magic Number).
+   - 'description': Breve descrição contextualizada.
+   - 'suggestion': Como refatorar.
+
+Se não houver code smells ou vulnerabilidades, retorne uma lista vazia.
+Responda apenas com o JSON, sem texto explicativo, sem Markdown e sem comentários.
+
+============
+
+O diff de código a seguir foi previamente identificado como contendo 'code smells'. 
+Sua tarefa é listar e descrever cada problema encontrado.
+Para cada code smell, forneça:
+- O nome do code smell (ex: 'Long Method', 'Magic Number', 'N+1 Query').
+- Uma descrição concisa do problema no contexto do código apresentado.
+- Uma sugestão de como refatorar o código para corrigir o problema.
+Formate sua resposta como uma lista de objetos JSON, com as chaves 'smell_type', 'description' e 'suggestion'.
+Responda apenas com o JSON, sem texto explicativo, sem Markdown e sem comentários.
+
+============
+
+Com base na seguinte lista de caminhos de arquivos de um projeto:
+{json.dumps(file_list_truncated, indent=2)}
+
+Identifique a linguagem de programação principal do projeto e o nome do arquivo de gerenciamento de dependências.
+Sua resposta deve ser estritamente um objeto JSON com duas chaves:
+1. "linguagem": A linguagem principal (ex: "Python", "Java", "JavaScript").
+2. "arquivo_dependencias": O nome do arquivo de dependências (ex: "requirements.txt", "package.json", "pom.xml").
+Se não conseguir identificar, retorne: {{"linguagem": "desconhecido", "arquivo_dependencias": "desconhecido"}}
+Responda apenas com o JSON, sem texto explicativo, sem Markdown e sem comentários.
+
+

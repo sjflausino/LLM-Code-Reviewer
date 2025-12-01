@@ -1,0 +1,11 @@
+[
+  {
+    "owner": "angular",
+    "repo": "angular",
+    "url": "https://github.com/angular/angular",
+    "osv_report": "true", 
+    "pull_requests": [
+      65712, 65687, 65683, 65680, 65646, 64524, 64262, 63705, 63104, 62533
+    ]
+  }
+]
