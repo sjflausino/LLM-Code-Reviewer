@@ -1,20 +1,11 @@
-#!/usr/bin/env python3
 """
-analise_sonar.py (final)
 
-Suporta:
- - checkout/clone seguro de PRs e commits
- - extração do diff (linhas envolvidas)
- - compilação automática para projetos Java com Maven (se houver pom.xml)
- - execução do sonar-scanner (multi-linguagem)
- - configuração automática de sonar.java.binaries quando aplicável
- - consulta de issues do Sonar arquivo-a-arquivo
- - relatório salvo no diretório do script
+Uso:
+    python analise_sonar_java.py <url_do_pr_ou_commit>
 
-Requisitos:
- - sonar-scanner no PATH ou configure SONAR_SCANNER_PATH (env)
- - Maven disponível (opcional, recomendado para Java). Pode usar MAVEN_EXECUTABLE_PATH var no topo.
- - Defina SONAR_PROJECT_KEY e SONAR_TOKEN via variáveis de ambiente ou llm_code_reviewer.config
+Ex:
+    python analise_sonar_java.py https://github.com/FasterXML/jackson-databind/pull/5317
+    python analise_sonar_java.py https://github.com/fulano/repo/commit/abcdef123456
 """
 import re
 import os
@@ -23,31 +14,27 @@ import subprocess
 from datetime import datetime
 from urllib.parse import urlparse
 import requests
-import shutil
 
 try:
     from llm_code_reviewer import config
-    GITHUB_TOKEN = getattr(config, "GITHUB_TOKEN", "") or os.environ.get("GITHUB_TOKEN", "")
+    GITHUB_TOKEN = config.GITHUB_TOKEN
 except Exception:
     GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 
-# Sonar / environment configuration
 SONAR_TOKEN = os.environ.get("SONAR_TOKEN")
-SONAR_URL = os.environ.get("SONAR_URL", "http://localhost:9000")
+SONAR_URL = "http://localhost:9000"
 SONAR_PROJECT_KEY = os.environ.get("SONAR_PROJECT_KEY")
-BASE_REPOS_PATH = os.environ.get("BASE_REPOS_PATH")
+MAVEN_EXECUTABLE_PATH = r"C:\Program Files\apache-maven-3.9.11\bin\mvn.cmd"
 
-MAVEN_EXECUTABLE_PATH = os.environ.get("MAVEN_EXECUTABLE_PATH")
+BASE_REPOS_PATH = os.environ.get("BASE_REPOS_PATH", r"C:\workspace\llm-test")
 
-SONAR_SCANNER_PATH = os.environ.get("SONAR_SCANNER_PATH", "")
+USE_SONAR_BRANCH_NAME = False
 
-USE_SONAR_BRANCH_NAME = bool(os.environ.get("USE_SONAR_BRANCH_NAME", "False").lower() in ("1","true","yes"))
-
-# Headers
+# Headers para GitHub / Sonar
 GITHUB_API_HEADERS = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"} if GITHUB_TOKEN else {"Accept": "application/vnd.github.v3+json"}
 SONAR_API_HEADERS = {"Authorization": f"Bearer {SONAR_TOKEN}"} if SONAR_TOKEN else {}
 
-# Utilities
+# Utilities -----------------------------------------------------------------
 def exit_with(msg, code=1):
     print(msg)
     sys.exit(code)
@@ -58,14 +45,20 @@ def safe_run(cmd, cwd=None, check=True):
     return subprocess.run(cmd, cwd=cwd, check=check, text=True)
 
 def run_capture(cmd, cwd=None, check=True):
-    """Run subprocess and capture output (stdout/stderr)."""
+    """Run subprocess and capture output (stdout/stderr). Returns CompletedProcess."""
     print("> " + " ".join(cmd))
     return subprocess.run(cmd, cwd=cwd, check=check, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-# 1) Parse GitHub URL
+# 1) Parse input URL -------------------------------------------------------
 def parse_github_url(url):
+    """
+    Retorna um dict com tipo: 'pr' ou 'commit', owner, repo, id
+    """
     parsed = urlparse(url)
     path = parsed.path.strip("/")
+    # exemplos:
+    # owner/repo/pull/5317
+    # owner/repo/commit/abcdef
     m_pr = re.match(r"([^/]+)/([^/]+)/pull/(\d+)", path)
     m_commit = re.match(r"([^/]+)/([^/]+)/commit/([0-9a-fA-F]+)", path)
     if m_pr:
@@ -75,7 +68,6 @@ def parse_github_url(url):
     else:
         exit_with("URL inválida. Forneça uma URL de PR (pull) ou de commit do GitHub.")
 
-# 2) Pegar os arquivos modificados
 def get_pr_files_with_patches(owner, repo, pr_number):
     files = []
     page = 1
@@ -92,6 +84,7 @@ def get_pr_files_with_patches(owner, repo, pr_number):
         if len(page_items) < per_page:
             break
         page += 1
+    # filtra removidos
     return [f for f in files if f.get("status") != "removed"]
 
 def get_commit_files_with_patches(owner, repo, sha):
@@ -102,13 +95,18 @@ def get_commit_files_with_patches(owner, repo, sha):
     data = resp.json()
     return [f for f in data.get("files", []) if f.get("status") != "removed"]
 
-# 3) Extrair linhas modificadas do patch
 def extract_all_lines_from_patch(patch):
+    """
+    Retorna um set com TODAS as linhas do arquivo 'novo' presentes no diff,
+    extraindo os ranges +start,length de cada hunk.
+    """
     modified_lines = set()
     if not patch:
         return modified_lines
+
     for line in patch.splitlines():
         if line.startswith("@@"):
+            # Ex: @@ -184,7 +184,7 @@
             m = re.search(r"\+(\d+)(?:,(\d+))?", line)
             if m:
                 start = int(m.group(1))
@@ -117,12 +115,22 @@ def extract_all_lines_from_patch(patch):
                     modified_lines.add(n)
     return modified_lines
 
-# 4) Checkout/clonar repo seguro
+# 4) Checkout/clonar repo seguro -------------------------------------------
 def checkout_pr_or_commit(base_path, owner, repo, kind, identifier):
+    """
+    Garantias:
+      - clona o repo em base_path/<repo> se não existir
+      - se existir, faz fetch --all
+      - para PRs, faz fetch origin pull/<n>/head:pr_<n> e faz checkout seguro
+      - para commits, cria/atualiza branch local short_<sha> e faz checkout
+    Retorna: (repo_path, branch_name_used)
+    """
     repo_url = f"https://github.com/{owner}/{repo}.git"
     repo_path = os.path.join(base_path, repo)
+
     os.makedirs(base_path, exist_ok=True)
 
+    # 1) clone se necessário
     if not os.path.isdir(repo_path):
         print(f"Clonando {repo_url} em {repo_path} ...")
         safe_run(["git", "clone", repo_url, repo_path])
@@ -130,20 +138,27 @@ def checkout_pr_or_commit(base_path, owner, repo, kind, identifier):
         print(f"Repositorio já existe em {repo_path}. Fazendo fetch --all ...")
         safe_run(["git", "fetch", "--all"], cwd=repo_path)
 
+    # 2) preparar branch_name e fetch especial se PR
     if kind == "pr":
         pr_num = identifier
         branch_name = f"pr_{pr_num}"
+
+        # fetch a ref do PR para a branch local (cria/atualiza pr_<n>)
         print(f"Buscando PR {pr_num} em origin (pull/{pr_num}/head -> {branch_name})")
-        safe_run(["git", "fetch", "origin"], cwd=repo_path, check=False)
+        # check: fetch may fail if remote doesn't allow, but check=False avoids raising
         safe_run(["git", "fetch", "origin", f"pull/{pr_num}/head:{branch_name}"], cwd=repo_path, check=False)
+
     else:
+        # commit
         sha = identifier
+        # criar um branch local que referencia o SHA para facilitar o checkout e sonar run
         branch_name = f"commit_{sha[:10]}"
         print(f"Criando/Atualizando branch local {branch_name} para o commit {sha}")
         safe_run(["git", "fetch", "origin"], cwd=repo_path, check=False)
+        # create or move branch to the commit sha
         safe_run(["git", "checkout", "-B", branch_name, sha], cwd=repo_path, check=False)
 
-    # verifica branch atual
+    # 3) verificar se já estamos nessa branch
     try:
         cur = run_capture(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_path)
         current_branch = cur.stdout.strip()
@@ -156,145 +171,87 @@ def checkout_pr_or_commit(base_path, owner, repo, kind, identifier):
         print(f"Tentando checkout seguro para {branch_name} ...")
         safe_run(["git", "checkout", branch_name], cwd=repo_path, check=False)
 
-    # garante que a branch existe
+    # 4) garantir que a branch local existe (como fallback)
     res = run_capture(["git", "branch", "--list", branch_name], cwd=repo_path)
     if not res.stdout.strip():
-        print(f"Atenção: branch {branch_name} não foi criada localmente como esperado. Tentando criar a partir de origin/{branch_name}...")
+        print(f"Atenção: branch {branch_name} não foi criada localmente como esperado. Tentando reset remoto...")
+        # tenta criar a partir de origin/branch_name (caso exista)
         safe_run(["git", "checkout", "-b", branch_name, f"origin/{branch_name}"], cwd=repo_path, check=False)
 
     print(f"Checkout concluído: {repo_path} @ {branch_name}")
     return repo_path, branch_name
 
-# verifica se é um projeto maven, já que precisa compilar primeiro nesse caso
-def is_maven_project(repo_path):
-    return os.path.isfile(os.path.join(repo_path, "pom.xml"))
-
-def any_java_files(repo_path):
-    for root, _, files in os.walk(repo_path):
-        for f in files:
-            if f.endswith(".java"):
-                return True
-    return False
-
-# 5) run sonar-scanner
 def run_sonar_analysis(repo_path, branch_name=None):
-    print("\n➡ Preparando análise Sonar (sonar-scanner). Aguarde...\n")
-
-    if not SONAR_PROJECT_KEY:
-        exit_with("SONAR_PROJECT_KEY não definido. Defina a variável de ambiente SONAR_PROJECT_KEY.")
-
-    props_path = os.path.join(repo_path, "sonar-project.properties")
-    sonar_props = {
-        "sonar.projectKey": SONAR_PROJECT_KEY,
-        "sonar.sources": ".",
-        "sonar.host.url": SONAR_URL
-    }
-
-    # se java com maven, tenta compilar automaticamente
-    binaries_path = None
-    if is_maven_project(repo_path):
-        print("Detectado pom.xml -> projeto Maven/Java. Tentando compilar via Maven...")
-        mvn_exec = MAVEN_EXECUTABLE_PATH
-        # verify mvn present
-        if shutil.which(mvn_exec) is None and not os.path.isfile(mvn_exec):
-            # try 'mvn' in PATH as fallback
-            if shutil.which("mvn"):
-                mvn_exec = "mvn"
-            else:
-                print("Aviso: Maven não encontrado no caminho configurado. Pulando compilação automática.")
-                mvn_exec = None
-
-        if mvn_exec:
-            try:
-                safe_run([mvn_exec, "clean", "package", "-DskipTests"], cwd=repo_path)
-                candidate = os.path.join(repo_path, "target", "classes")
-                if os.path.isdir(candidate):
-                    binaries_path = "target/classes"
-                    print(f"Compilação bem-sucedida. Encontrado: {candidate}")
-                else:
-                    print("Compilação terminou, mas target/classes não foi encontrado. Continuando com fallback.")
-            except subprocess.CalledProcessError as e:
-                print("Erro ao executar mvn package. Continuando com fallback (não abortando).")
-    else:
-        if any_java_files(repo_path):
-            print("Encontrados arquivos .java mas sem pom.xml. Será usado fallback (sonar.java.binaries=.) — análise Java será limitada.")
-            binaries_path = "."
-
-    # escrever sonar-project.properties mínimo se não existir
-    if not os.path.exists(props_path):
-        print("Criando sonar-project.properties mínimo...")
-        lines = []
-        for k, v in sonar_props.items():
-            lines.append(f"{k}={v}")
-        if binaries_path:
-            lines.append(f"sonar.java.binaries={binaries_path}")
-        if SONAR_TOKEN:
-            lines.append(f"sonar.login={SONAR_TOKEN}")
-        content = "\n".join(lines) + "\n"
-        with open(props_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        print(f"Arquivo criado: {props_path}")
-    else:
-        if binaries_path:
-            with open(props_path, "r", encoding="utf-8") as f:
-                txt = f.read()
-            if "sonar.java.binaries" not in txt:
-                with open(props_path, "a", encoding="utf-8") as f:
-                    f.write(f"\nsonar.java.binaries={binaries_path}\n")
-                print("Adicionado sonar.java.binaries ao sonar-project.properties existente.")
-
-    # prepara sonar-scanner command
-    if SONAR_SCANNER_PATH:
-        cmd = [SONAR_SCANNER_PATH]
-    else:
-        cmd = ["sonar-scanner"]
-
+    """
+    Executa mvn sonar:sonar no repo_path. Se USE_SONAR_BRANCH_NAME True e branch_name fornecido,
+    passa -Dsonar.branch.name.
+    """
+    print("\n➡ Iniciando análise Sonar (Maven). Aguarde...\n")
+    maven_command = [
+        MAVEN_EXECUTABLE_PATH,
+        "clean", "install", "-DskipTests",
+        "sonar:sonar",
+        f"-Dsonar.projectKey={SONAR_PROJECT_KEY}",
+        f"-Dsonar.host.url={SONAR_URL}",
+        f"-Dsonar.token={SONAR_TOKEN}"
+    ]
     if USE_SONAR_BRANCH_NAME and branch_name:
-        cmd.append(f"-Dsonar.branch.name={branch_name}")
+        maven_command.append(f"-Dsonar.branch.name={branch_name}")
 
 
-    print("Executando sonar-scanner...")
-    try:
-        proc = subprocess.Popen(cmd, cwd=repo_path, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-    except FileNotFoundError:
-        exit_with("Executável sonar-scanner não encontrado. Defina SONAR_SCANNER_PATH ou coloque sonar-scanner no PATH.")
+    maven_cwd = repo_path
 
+    # Tenta localizar recursivamente o pom.xml se não estiver na raiz
+    if not os.path.exists(os.path.join(repo_path, "pom.xml")):
+        for root, dirs, files in os.walk(repo_path):
+            if "pom.xml" in files:
+                print(f"pom.xml encontrado em: {root}")
+                maven_cwd = root
+                break
+
+    proc = subprocess.Popen(maven_command, cwd=maven_cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     for line in proc.stdout:
         print(line, end="")
-    stderr = proc.stderr.read()
-    if stderr.strip():
+    stderr_output = proc.stderr.read()
+    if stderr_output:
         print("\n--- STDERR ---")
-        print(stderr)
+        print(stderr_output)
     proc.wait()
     if proc.returncode != 0:
-        exit_with(f"Erro ao rodar sonar-scanner (exit {proc.returncode})")
+        exit_with(f"Erro: Maven/sonar:sonar retornou código {proc.returncode}")
 
-# 6) pegar issues do sonar
 def get_sonar_issues_for_components(component_files, branch_name=None):
-    if not SONAR_PROJECT_KEY:
-        exit_with("SONAR_PROJECT_KEY não definido. Defina a variável de ambiente SONAR_PROJECT_KEY.")
-
+    """
+    Agora consulta um arquivo por vez para evitar o erro:
+    "All components must have the same qualifier (FIL,UTS)"
+    """
     issues_all = []
+
     for file_path in component_files:
         component_key = f"{SONAR_PROJECT_KEY}:{file_path}"
+
         params = {
             "componentKeys": component_key,
             "types": "BUG,VULNERABILITY,CODE_SMELL",
             "resolved": "false",
             "ps": "500"
         }
+
         if USE_SONAR_BRANCH_NAME and branch_name:
             params["branch"] = branch_name
+
         url = f"{SONAR_URL}/api/issues/search"
         resp = requests.get(url, headers=SONAR_API_HEADERS, params=params)
+
         if resp.status_code != 200:
-            print(f"Warning: erro ao consultar Sonar para {file_path}: {resp.status_code} {resp.text}")
-            continue
+            exit_with(f"Erro ao consultar Sonar para {file_path}: {resp.status_code} {resp.text}")
+
         data = resp.json()
         issues_all.extend(data.get("issues", []))
+
     return issues_all
 
-# 7) filtrar issues por linhas do diff
+
 def filter_issues_by_diff(issues, changed_files_lines_map):
     filtered = []
     for issue in issues:
@@ -308,12 +265,13 @@ def filter_issues_by_diff(issues, changed_files_lines_map):
             filtered.append(issue)
     return filtered
 
-# 8) gerar relatório
 def generate_report(pr_or_commit_url, kind, identifier, branch_name, changed_files_lines_map, filtered_issues):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_name = f"sonar_report_{kind}_{identifier}_{timestamp}.txt"
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
     output_file = os.path.join(script_dir, out_name)
+
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("="*80 + "\n")
         f.write(f"RELATÓRIO SONAR - FILTRADO POR DIFF\n")
@@ -323,11 +281,13 @@ def generate_report(pr_or_commit_url, kind, identifier, branch_name, changed_fil
         f.write(f"Branch usada: {branch_name}\n")
         f.write(f"Data: {timestamp}\n")
         f.write("="*80 + "\n\n")
+
         f.write("Arquivos alterados e linhas modificadas (amostra):\n")
         for fp, lines in changed_files_lines_map.items():
             f.write(f"- {fp}: {sorted(list(lines))[:20]}{' ...' if len(lines)>20 else ''}\n")
         f.write("\n")
         f.write(f"Total de issues (após filtro por linha): {len(filtered_issues)}\n\n")
+
         for issue in filtered_issues:
             file_path = issue['component'].split(':', 1)[-1]
             f.write("-"*40 + "\n")
@@ -338,11 +298,12 @@ def generate_report(pr_or_commit_url, kind, identifier, branch_name, changed_fil
             f.write(f"Key: {issue.get('key')}\n")
             f.write(f"Link: {SONAR_URL}/project/issues?id={SONAR_PROJECT_KEY}&issues={issue.get('key')}\n")
         f.write("\n" + "="*80 + "\n")
+
     print(f"\n✅ Relatório gerado: {output_file}")
 
 def main():
     if len(sys.argv) < 2:
-        exit_with("Uso: python analise_sonar.py <url_do_pr_ou_commit>")
+        exit_with("Uso: python analise_sonar_java.py <url_do_pr_ou_commit>")
 
     url = sys.argv[1]
     parsed = parse_github_url(url)
@@ -371,16 +332,19 @@ def main():
         changed_file_list.append(filename)
         print(f"Arquivo: {filename}, linhas modificadas: {len(lines_set)}")
 
+    # 3) prepare checkout/clone
     try:
         repo_path, branch_name = checkout_pr_or_commit(BASE_REPOS_PATH, owner, repo, kind, identifier)
     except subprocess.CalledProcessError as e:
         exit_with(f"Erro git ao dar checkout: {e}")
 
+    # 4) run sonar (no repo_path). se USE_SONAR_BRANCH_NAME False não passamos branch
     try:
         run_sonar_analysis(repo_path, branch_name if USE_SONAR_BRANCH_NAME else None)
     except Exception as e:
-        exit_with(f"Erro ao executar Sonar Scanner: {e}")
+        exit_with(f"Erro ao executar Sonar/Maven: {e}")
 
+    # 5) query Sonar issues for changed files
     try:
         sonar_issues = get_sonar_issues_for_components(changed_file_list, branch_name if USE_SONAR_BRANCH_NAME else None)
     except Exception as e:
@@ -388,9 +352,11 @@ def main():
 
     print(f"Total de issues retornadas pelo Sonar (em arquivos alterados): {len(sonar_issues)}")
 
+    # 6) filter by modified lines
     filtered_issues = filter_issues_by_diff(sonar_issues, changed_files_lines_map)
     print(f"Issues após filtro por linhas do diff: {len(filtered_issues)}")
 
+    # 7) generate report (no diretório do script)
     generate_report(url, kind, identifier, branch_name, changed_files_lines_map, filtered_issues)
 
 if __name__ == "__main__":
