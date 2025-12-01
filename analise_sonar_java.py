@@ -265,7 +265,7 @@ def filter_issues_by_diff(issues, changed_files_lines_map):
             filtered.append(issue)
     return filtered
 
-def generate_report(pr_or_commit_url, kind, identifier, branch_name, changed_files_lines_map, filtered_issues):
+def generate_report(pr_or_commit_url, kind, identifier, branch_name, changed_files_lines_map, filtered_issues, start_time, end_time):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_name = f"sonar_report_{kind}_{identifier}_{timestamp}.txt"
 
@@ -280,6 +280,9 @@ def generate_report(pr_or_commit_url, kind, identifier, branch_name, changed_fil
         f.write(f"Ref/ID: {identifier}\n")
         f.write(f"Branch usada: {branch_name}\n")
         f.write(f"Data: {timestamp}\n")
+        f.write(f"Análise iniciada em: {start_time}\n")
+        f.write(f"Análise finalizada em: {end_time}\n")
+        f.write(f"Duração total: {end_time - start_time}\n\n")
         f.write("="*80 + "\n\n")
 
         f.write("Arquivos alterados e linhas modificadas (amostra):\n")
@@ -340,7 +343,9 @@ def main():
 
     # 4) run sonar (no repo_path). se USE_SONAR_BRANCH_NAME False não passamos branch
     try:
+        start_time = datetime.now()
         run_sonar_analysis(repo_path, branch_name if USE_SONAR_BRANCH_NAME else None)
+        end_time = datetime.now()
     except Exception as e:
         exit_with(f"Erro ao executar Sonar/Maven: {e}")
 
@@ -357,7 +362,7 @@ def main():
     print(f"Issues após filtro por linhas do diff: {len(filtered_issues)}")
 
     # 7) generate report (no diretório do script)
-    generate_report(url, kind, identifier, branch_name, changed_files_lines_map, filtered_issues)
+    generate_report(url, kind, identifier, branch_name, changed_files_lines_map, filtered_issues, start_time, end_time)
 
 if __name__ == "__main__":
     main()
