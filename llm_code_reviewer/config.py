@@ -8,6 +8,12 @@ load_dotenv()
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
+try:
+    GEMINI_TEMPERATURE = float(os.getenv('GEMINI_TEMPERATURE', 0.2))
+except (ValueError, TypeError):
+    print("Aviso: GEMINI_TEMPERATURE inválida. Usando padrão 0.2.")
+    GEMINI_TEMPERATURE = 0.2
+
 # Configurações do Workflow
 # O valor padrão é 10, mas pode ser sobrescrito
 try:

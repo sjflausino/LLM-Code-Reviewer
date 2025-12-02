@@ -5,6 +5,7 @@ import shutil
 import time
 import requests
 import sys
+import stat
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,13 +17,20 @@ SONAR_LOGIN = os.getenv('SONAR_LOGIN')
 SONAR_PASSWORD = os.getenv('SONAR_PASSWORD')
 
 INPUT_FILE = os.getenv('INPUT_FILE', 'pr_info_final_20251130_162706_v1.json')
-OUTPUT_FILE = os.getenv('OUTPUT_FILE', 'relatorio_sonar_detalhado.json')
 TEMP_DIR = 'temp_repos'
+
+# Configuração dinâmica do arquivo de saída com Timestamp
+# Ex: relatorio_sonar_detalhado.json -> relatorio_sonar_detalhado_20251202_194500.json
+BASE_OUTPUT = os.getenv('OUTPUT_FILE', 'relatorio_sonar_detalhado.json')
+filename, file_extension = os.path.splitext(BASE_OUTPUT)
+current_ts = time.strftime("%Y%m%d_%H%M%S")
+OUTPUT_FILE = f"{filename}_{current_ts}{file_extension}"
 
 # Métricas
 METRIC_KEYS = "bugs,vulnerabilities,code_smells,sqale_index,coverage,duplicated_lines_density"
 
-# Helper de Autenticação para requests
+# --- HELPERS ---
+
 def get_auth():
     if SONAR_TOKEN:
         return (SONAR_TOKEN, '')
@@ -30,9 +38,19 @@ def get_auth():
         return (SONAR_LOGIN, SONAR_PASSWORD)
     return None
 
+def on_rm_error(func, path, exc_info):
+    """
+    Callback para lidar com arquivos somente leitura (comum em pastas .git no Windows)
+    que impedem o shutil.rmtree de funcionar.
+    """
+    os.chmod(path, stat.S_IWRITE)
+    try:
+        func(path)
+    except Exception:
+        pass
+
 def run_command(command, cwd=None):
     try:
-        # shell=True permite usar && e pipes se necessário, mas aqui executamos comando direto
         result = subprocess.run(
             command, 
             cwd=cwd, 
@@ -45,7 +63,7 @@ def run_command(command, cwd=None):
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        # print(f"Erro no comando: {e.stderr}") # Descomente para debug
+        # print(f"Erro no comando: {e.stderr}") # Descomente para debug se necessário
         return None
 
 def get_sonar_analysis_status(ce_task_id):
@@ -54,7 +72,8 @@ def get_sonar_analysis_status(ce_task_id):
     
     print(f"   ⏳ Aguardando Compute Engine (Task: {ce_task_id})...")
     
-    for _ in range(60): 
+    # Aumentado para 120 tentativas de 2s (aprox 4 minutos) para evitar timeout
+    for _ in range(120): 
         try:
             response = requests.get(url, auth=auth)
             if response.status_code != 200: return None
@@ -121,7 +140,11 @@ def get_sonar_issues_details(component_key):
         except: break
     return all_issues
 
+# --- LOOP PRINCIPAL ---
+
 def analyze_pr(owner, repo_name, pr_number):
+    start_time = time.time()
+    
     repo_url = f"https://github.com/{owner}/{repo_name}.git"
     
     # Gera uma chave única: owner_repo_pr1
@@ -133,16 +156,17 @@ def analyze_pr(owner, repo_name, pr_number):
     print(f"\n--- {owner}/{repo_name} PR #{pr_number} ---")
 
     # Limpeza e criação do diretório
-    if os.path.exists(base_dir): shutil.rmtree(base_dir)
+    if os.path.exists(base_dir): 
+        shutil.rmtree(base_dir, onerror=on_rm_error)
     os.makedirs(base_dir)
 
-    # 1. Clone e Checkout (Equivalente ao seu git fetch && git switch)
+    # 1. Clone e Checkout
     print(f"   📥 Baixando código...")
     
-    # Clone sem checkout inicial para ganhar tempo
+    # Clone sem checkout inicial
     run_command(f"git clone -n {repo_url} .", cwd=base_dir) 
     
-    # Fetch do PR específico para uma branch local chamada 'pr-branch'
+    # Fetch do PR específico
     run_command(f"git fetch origin pull/{pr_number}/head:pr-branch", cwd=base_dir)
     
     # Switch para a branch
@@ -160,16 +184,13 @@ def analyze_pr(owner, repo_name, pr_number):
         f"-Dsonar.scm.disabled=true"
     ]
 
-    # Decide qual autenticação usar
     if SONAR_TOKEN:
         sonar_args.append(f"-Dsonar.token={SONAR_TOKEN}")
     elif SONAR_LOGIN and SONAR_PASSWORD:
         sonar_args.append(f"-Dsonar.login={SONAR_LOGIN}")
         sonar_args.append(f"-Dsonar.password={SONAR_PASSWORD}")
     
-    # Junta os argumentos em uma string para execução
     sonar_cmd = " ".join(sonar_args)
-    
     run_command(sonar_cmd, cwd=base_dir)
 
     # Coleta de resultados
@@ -177,8 +198,12 @@ def analyze_pr(owner, repo_name, pr_number):
     results = {"metrics": {}, "issues": []}
     
     if os.path.exists(report_task_path):
+        ce_task_id = None
         with open(report_task_path, 'r') as f:
-            ce_task_id = next((l.split('=')[1].strip() for l in f if l.startswith('ceTaskId=')), None)
+            for line in f:
+                if line.startswith('ceTaskId='):
+                    ce_task_id = line.split('=')[1].strip()
+                    break
             
         if ce_task_id and get_sonar_analysis_status(ce_task_id):
             print("   ✅ Coletando detalhes...")
@@ -189,16 +214,24 @@ def analyze_pr(owner, repo_name, pr_number):
     else:
         print("   ⚠️ Report do Sonar não encontrado. O scanner rodou?")
     
-    shutil.rmtree(base_dir)
+    # Limpeza final
+    if os.path.exists(base_dir):
+        shutil.rmtree(base_dir, onerror=on_rm_error)
+    
+    end_time = time.time()
+    results["duration_sec"] = round(end_time - start_time, 2)
+    
     return results
 
 def main():
-    # Verifica se existe arquivo de entrada
+    if not shutil.which("sonar-scanner"):
+        print("❌ ERRO: O executável 'sonar-scanner' não foi encontrado no PATH do sistema.")
+        return
+
     if not os.path.exists(INPUT_FILE):
         print(f"❌ ERRO: Arquivo de entrada '{INPUT_FILE}' não encontrado.")
         return
     
-    # Verifica autenticação
     if not SONAR_TOKEN and not (SONAR_LOGIN and SONAR_PASSWORD):
         print("❌ ERRO: Configure SONAR_TOKEN ou (SONAR_LOGIN e SONAR_PASSWORD) no .env")
         return
@@ -210,21 +243,33 @@ def main():
         data = json.load(f)
 
     output_data = {
-        "run_summary": {"timestamp": time.strftime("%Y-%m-%d %H:%M:%S"), "tool": "SonarScanner Automation"},
+        "run_summary": {
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"), 
+            "tool": "SonarScanner Automation"
+        },
         "repositories": []
     }
 
-    for repo in data.get('repositories', []):
+    total_repos = len(data.get('repositories', []))
+    
+    for idx, repo in enumerate(data.get('repositories', [])):
         owner, repo_name = repo['owner'], repo['repo']
+        print(f"\n📦 Processando Repositório {idx+1}/{total_repos}: {owner}/{repo_name}")
+        
         repo_entry = {"owner": owner, "repo": repo_name, "pull_requests": []}
 
         for pr in repo.get('pull_requests', []):
             res = analyze_pr(owner, repo_name, pr['pr_number'])
+            
             repo_entry["pull_requests"].append({
                 "pr_number": pr['pr_number'],
                 "title": pr.get('title', ''),
                 "url": pr.get('url', ''),
-                "sonar_results": {"summary_metrics": res["metrics"], "detected_issues": res["issues"]}
+                "analysis_duration_sec": res.get("duration_sec", 0),
+                "sonar_results": {
+                    "summary_metrics": res["metrics"], 
+                    "detected_issues": res["issues"]
+                }
             })
         output_data["repositories"].append(repo_entry)
 

@@ -13,6 +13,13 @@ class GeminiClient:
         genai.configure(api_key=config.GEMINI_API_KEY)
         self.model = genai.GenerativeModel('gemini-2.5-flash') 
         
+        # Cria a configuração de geração usando a temperatura definida no config
+        # Se config.GEMINI_TEMPERATURE não existir, usa 0.2 como fallback seguro
+        temperature = getattr(config, 'GEMINI_TEMPERATURE', 0.2)
+        self.generation_config = genai.types.GenerationConfig(
+            temperature=temperature
+        )
+        
         self.total_api_calls = 0
         self.total_tokens = 0
 
@@ -52,7 +59,11 @@ class GeminiClient:
         """
         
         try:
-            response = self.model.generate_content(prompt)
+            # Aplica a configuração de temperatura
+            response = self.model.generate_content(
+                prompt, 
+                generation_config=self.generation_config
+            )
             self._update_usage(response) 
             text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
             
@@ -116,7 +127,6 @@ class GeminiClient:
             response = self.call_gemini_api(prompt)
             text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
 
-            
             data = json.loads(text_to_parse)
             
             return {
@@ -133,18 +143,25 @@ class GeminiClient:
     
     def call_gemini_api(self, prompt, retry_count=0, max_retries=3):
         """Chamada genérica à API do Gemini com contabilização de uso."""
-        # if(self.client.models.count_tokens(model=''gemini-2.5-flash'', contents=[prompt]) > 0):
         try:
             prompt_tokens = self.model.count_tokens(contents=[prompt]).total_tokens
             if prompt_tokens > PROMPT_LIMIT:
                 print(f"Aviso: O prompt excede o limite de {PROMPT_LIMIT} tokens. Truncando.")
                 raise ValueError("Prompt muito grande para a API gratuita do Gemini.")
+            
             start = time.time()
-            response = self.model.generate_content(prompt)
+            
+            # Aplica a configuração de temperatura
+            response = self.model.generate_content(
+                prompt, 
+                generation_config=self.generation_config
+            )
+            
             self._update_usage(response)
             end = time.time()
             print(f"Tempo de resposta da API Gemini: {end - start:.2f} segundos")
             return response
+            
         except exceptions.GoogleAPICallError as e:
             status = getattr(e, "code", None)
             message = str(e)
