@@ -15,7 +15,7 @@ class GeminiClient:
         
         # Cria a configuração de geração usando a temperatura definida no config
         # Se config.GEMINI_TEMPERATURE não existir, usa 0.2 como fallback seguro
-        temperature = getattr(config, 'GEMINI_TEMPERATURE', 0.2)
+        temperature = config.GEMINI_TEMPERATURE
         self.generation_config = genai.types.GenerationConfig(
             temperature=temperature
         )
@@ -84,9 +84,11 @@ class GeminiClient:
             "Sua tarefa é listar e descrever cada problema encontrado.\n\n"
             "Para cada code smell, forneça:\n"
             "- O nome do code smell (ex: 'Long Method', 'Magic Number', 'N+1 Query').\n"
+            "- A severidade do code smell (INFO, MINOR, MAJOR, CRITICAL, BLOCKER).\n"
+            "- A regra ou padrão que define esse code smell.\n"
             "- Uma descrição concisa do problema no contexto do código apresentado.\n"
             "- Uma sugestão de como refatorar o código para corrigir o problema.\n\n"
-            "Formate sua resposta como uma lista de objetos JSON, com as chaves 'smell_type', 'description' e 'suggestion'.\n\n"
+            "Formate sua resposta como uma lista de objetos JSON, com as chaves 'smell_type', 'severity', 'rule' 'description' e 'suggestion'.\n\n"
             "Responda apenas com o JSON, sem texto explicativo, sem Markdown e sem comentários."
             f"```diff\n{diff_content}\n```"
         )
@@ -112,11 +114,13 @@ class GeminiClient:
             "   - O que mudou (alterações principais).\n"
             "   - Por que mudou (intenção inferida).\n\n"
             
-            "2. 'code_smells' (lista de objetos): Identifique problemas de qualidade ou vulnerabilidades no código (se houver).\n"
+            "2. 'code_smells' (lista de objetos): Identifique problemas de code_smell ou vulnerabilidades no código (se houver).\n"
             "   Para cada item, inclua:\n"
             "   - 'smell_type': Nome do padrão (ex: Long Method, Magic Number).\n"
             "   - 'description': Breve descrição contextualizada.\n"
-            "   - 'suggestion': Como refatorar.\n\n"
+            "   - 'suggestion': Uma sugestão de como refatorar o código para corrigir o problema.\n\n"
+            "   - 'severity': A severidade do code smell (INFO, MINOR, MAJOR, CRITICAL, BLOCKER).\n"
+            "   - 'rule': Se existir, regra ou padrão que define esse code smell ou vulnerabilidade no sonarqube, caso contrário deixar em branco.\n"
             
             "Se não houver code smells ou vulnerabilidades, retorne uma lista vazia.\n"
             "Responda apenas com o JSON, sem texto explicativo, sem Markdown e sem comentários."

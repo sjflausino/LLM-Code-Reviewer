@@ -7,6 +7,7 @@ load_dotenv()
 # Chaves de API
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+GEMINI_TEMPERATURE = os.getenv('GEMINI_TEMPERATURE', 0.2)
 
 try:
     GEMINI_TEMPERATURE = float(os.getenv('GEMINI_TEMPERATURE', 0.2))
