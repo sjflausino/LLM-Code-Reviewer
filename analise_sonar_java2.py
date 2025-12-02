@@ -140,20 +140,31 @@ def checkout_pr_or_commit(base_path, owner, repo, kind, identifier):
     return repo_path, branch_name
 
 # 3) Sonar Analysis --------------------------------------------------------
-def run_sonar_analysis(repo_path, project_key, branch_name=None):
+def run_sonar_analysis(repo_path, project_key, branch_name=None, inclusions=None):
     log(f"Iniciando análise Sonar (Key={project_key})...")
     
+    sonar_inclusions_arg = []
+    if inclusions:
+        inclusions_str = ",".join(inclusions)
+        sonar_inclusions_arg = [
+            f"-Dsonar.inclusions={inclusions_str}",
+            f"-Dsonar.test.inclusions={inclusions_str}"
+        ]
+        log(f"Limitando análise a {len(inclusions)} arquivos alterados.")
+
     maven_command = [
         MAVEN_EXECUTABLE_PATH,
         "clean", "install", "-DskipTests",
         "-Dgpg.skip",
-        "-Dmaven.javadoc.skip=true"
+        "-Dmaven.javadoc.skip=true",
         "sonar:sonar",
         f"-Dsonar.projectKey={project_key}",
         f"-Dsonar.projectName={project_key}",
         f"-Dsonar.host.url={SONAR_URL}",
         f"-Dsonar.token={SONAR_TOKEN}"
     ]
+    maven_command.extend(sonar_inclusions_arg)
+
     if USE_SONAR_BRANCH_NAME and branch_name:
         maven_command.append(f"-Dsonar.branch.name={branch_name}")
 
@@ -227,19 +238,23 @@ def filter_issues_by_diff(issues, changed_files_lines_map, project_key):
     return filtered
 
 # 4) Report ----------------------------------------------------------------
-def generate_report(owner, repo, kind, identifier, branch_name, changed_files_lines_map, filtered_issues, duration, output_dir):
+def generate_report(owner, repo, kind, identifier, branch_name, changed_files_lines_map, filtered_issues, duration, output_dir, project_key):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_identifier = str(identifier).replace("/", "_")
-    out_name = f"{owner}_{repo}_{kind}_{safe_identifier}_{timestamp}.txt"
+    out_name = f"{owner}_{repo}_{kind}_{safe_identifier}.txt"
     output_file = os.path.join(output_dir, out_name)
 
     os.makedirs(output_dir, exist_ok=True)
+    
+    # URL do Dashboard do Projeto
+    project_url = f"{SONAR_URL}/dashboard?id={project_key}"
 
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("="*80 + "\n")
         f.write(f"RELATÓRIO SONAR - {owner}/{repo}\n")
         f.write(f"Tipo: {kind} | ID: {identifier}\n")
         f.write(f"Branch: {branch_name}\n")
+        f.write(f"Link do Projeto: {project_url}\n") # <--- Link do Projeto
         f.write(f"Duração análise: {duration}\n")
         f.write("="*80 + "\n\n")
 
@@ -250,9 +265,14 @@ def generate_report(owner, repo, kind, identifier, branch_name, changed_files_li
         f.write(f"Issues Encontradas (Diff Context): {len(filtered_issues)}\n\n")
 
         for issue in filtered_issues:
+            # Montagem do Link da Issue Específica
+            issue_key = issue.get("key")
+            issue_url = f"{SONAR_URL}/project/issues?id={project_key}&issues={issue_key}&open={issue_key}"
+            
             f.write("-" * 40 + "\n")
             f.write(f"Arquivo: {issue['component'].split(':', 1)[-1]}\n")
             f.write(f"Linha: {issue.get('line')} | Severidade: {issue.get('severity')}\n")
+            f.write(f"Link Issue: {issue_url}\n") # <--- Link da Issue
             f.write(f"Msg: {issue.get('message')}\n")
             f.write(f"Rule: {issue.get('rule')}\n")
     
@@ -294,13 +314,13 @@ def process_single_item(owner, repo, kind, identifier):
         repo_path, branch_name = checkout_pr_or_commit(BASE_REPOS_PATH, owner, repo, kind, identifier)
 
         # 3. Definir Project Key (Único por repo para não misturar análises)
-        project_key = DEFAULT_SONAR_PROJECT_KEY if DEFAULT_SONAR_PROJECT_KEY else f"{owner}_{repo}"
+        project_key = DEFAULT_SONAR_PROJECT_KEY if DEFAULT_SONAR_PROJECT_KEY else f"{owner}_{repo}_{kind}_{identifier}"
         # Sanitizar chave (sonar não gosta de espaços ou chars especiais)
         project_key = re.sub(r'[^a-zA-Z0-9\-_]', '_', project_key)
 
         # 4. Rodar Sonar
         start_time = datetime.now()
-        run_sonar_analysis(repo_path, project_key, branch_name if USE_SONAR_BRANCH_NAME else None)
+        run_sonar_analysis(repo_path, project_key, branch_name if USE_SONAR_BRANCH_NAME else None, inclusions=changed_file_list)
         end_time = datetime.now()
 
         # 5. Consultar Issues e Filtrar
@@ -311,7 +331,8 @@ def process_single_item(owner, repo, kind, identifier):
         generate_report(
             owner, repo, kind, identifier, branch_name, 
             changed_files_lines_map, filtered_issues, 
-            end_time - start_time, REPORTS_DIR
+            end_time - start_time, REPORTS_DIR,
+            project_key
         )
 
     except Exception as e:
