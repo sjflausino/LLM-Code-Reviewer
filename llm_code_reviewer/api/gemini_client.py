@@ -93,10 +93,11 @@ class GeminiClient:
             f"```diff\n{diff_content}\n```"
         )
         try:
+            diff_content_tokens = self.model.count_tokens(contents=[diff_content]).total_tokens
             response = self.call_gemini_api(prompt)
             text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
             if text_to_parse:
-                return json.loads(text_to_parse)
+                return json.loads(text_to_parse), diff_content_tokens
         except Exception as e:
             print(f"Erro ao listar code smell específicos: {e}, {response.text if 'response' in locals() else 'No response'}")
         
@@ -128,6 +129,8 @@ class GeminiClient:
         )
 
         try:
+            diff_content_tokens = self.model.count_tokens(contents=[diff_content]).total_tokens
+            print(f"    -> Tokens no diff de entrada: {diff_content_tokens}")
             response = self.call_gemini_api(prompt)
             text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
 
@@ -135,14 +138,16 @@ class GeminiClient:
             
             return {
                 "summary": data.get("summary", "Resumo indisponível."),
-                "code_smells": data.get("code_smells", [])
+                "code_smells": data.get("code_smells", []),
+                "diff_content_tokens": diff_content_tokens,
             }
         except Exception as e:
             print(f"Erro na análise do PR: {e}")
 
             return {
                 "summary": "Erro ao gerar análise.",
-                "code_smells": []
+                "code_smells": [],
+                "diff_tokens": diff_content_tokens
             }
     
     def call_gemini_api(self, prompt, retry_count=0, max_retries=3):
