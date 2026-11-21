@@ -16,12 +16,12 @@ except (ValueError, TypeError):
     GEMINI_TEMPERATURE = 0.2
 
 # Configurações do Workflow
-# O valor padrão é 10, mas pode ser sobrescrito
+# O valor padrão é 3, mas pode ser sobrescrito
 try:
-    NUM_PULLS = int(os.getenv('NUM_PULLS', 10))
+    NUM_PULLS = int(os.getenv('NUM_PULLS', 3))
 except (ValueError, TypeError):
     print("Aviso: A variável de ambiente NUM_PULLS não é um número válido. Usando o padrão de 10.")
-    NUM_PULLS = 10
+    NUM_PULLS = 3
 
 REPOS_FILE = os.getenv('REPOS_FILE', 'repositorios.json')
 
