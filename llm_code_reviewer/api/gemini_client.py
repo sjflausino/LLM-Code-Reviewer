@@ -1,27 +1,119 @@
 import time
+from datetime import datetime, timezone
 import google.generativeai as genai
 from google.api_core import exceptions
 import json
-import re
 from .. import config
 
 PROMPT_LIMIT = 250000
 
 class GeminiClient:
     def __init__(self):
-        # 'config' agora está definido e 'GEMINI_API_KEY' existe no config.py
         genai.configure(api_key=config.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-3.1-flash-lite') 
+        self.model_name = 'gemini-3.1-flash-lite'
+        self.model = genai.GenerativeModel(self.model_name)
         
-        # Cria a configuração de geração usando a temperatura definida no config
-        # Se config.GEMINI_TEMPERATURE não existir, usa 0.2 como fallback seguro
-        temperature = config.GEMINI_TEMPERATURE
+        self.temperature = config.GEMINI_TEMPERATURE
         self.generation_config = genai.types.GenerationConfig(
-            temperature=temperature
+            temperature=self.temperature
         )
         
         self.total_api_calls = 0
         self.total_tokens = 0
+        self.provenance_context = {}
+        self.provenance_operation = "unspecified"
+        self.provenance_calls = []
+
+    def set_provenance_context(self, owner, repo, artifact_type, artifact_id):
+        self.provenance_context = {
+            "owner": owner,
+            "repo": repo,
+            "artifact_type": artifact_type,
+            "artifact_id": artifact_id,
+        }
+
+    def get_provenance_config(self):
+        return {
+            "model": self.model_name,
+            "temperature": self.temperature,
+        }
+
+    def get_provenance_calls(self):
+        return list(self.provenance_calls)
+
+    def get_last_provenance_token_counts(self):
+        if not self.provenance_calls:
+            return {
+                "input_tokens": 0,
+                "output_tokens": 0,
+            }
+        call = self.provenance_calls[-1]
+        return {
+            "input_tokens": call.get("input_tokens", 0),
+            "output_tokens": call.get("output_tokens", 0),
+        }
+
+    def _record_failed_provenance_call(
+        self, operation, started_at, start, error, input_tokens=0
+    ):
+        message = str(error).lower()
+        is_timeout = (
+            isinstance(error, (TimeoutError, exceptions.DeadlineExceeded))
+            or "timeout" in message
+            or "timed out" in message
+        )
+        self.provenance_calls.append({
+            **self.provenance_context,
+            "operation": operation,
+            "attempt": 1,
+            "started_at": started_at.isoformat(),
+            "duration_sec": time.perf_counter() - start,
+            "status": "failed",
+            "is_timeout": is_timeout,
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+            "input_tokens": input_tokens,
+            "output_tokens": 0,
+        })
+
+    def _generate_content(self, prompt, attempt=1):
+        started_at = datetime.now(timezone.utc)
+        start = time.perf_counter()
+        input_tokens = 0
+        try:
+            input_tokens = self.model.count_tokens(contents=[prompt]).total_tokens
+            if input_tokens > PROMPT_LIMIT:
+                raise ValueError("Prompt muito grande para a API gratuita do Gemini.")
+            response = self.model.generate_content(
+                prompt,
+                generation_config=self.generation_config
+            )
+        except Exception as error:
+            self._record_failed_provenance_call(
+                self.provenance_operation,
+                started_at,
+                start,
+                error,
+                input_tokens,
+            )
+            self.provenance_calls[-1]["attempt"] = attempt
+            raise
+
+        duration = time.perf_counter() - start
+        self.provenance_calls.append({
+            **self.provenance_context,
+            "operation": self.provenance_operation,
+            "attempt": attempt,
+            "started_at": started_at.isoformat(),
+            "duration_sec": duration,
+            "status": "succeeded",
+            "is_timeout": False,
+            "error_type": None,
+            "error_message": None,
+            "input_tokens": input_tokens,
+            "output_tokens": 0,
+        })
+        return response
 
     def _update_usage(self, response):
         """Método auxiliar para contabilizar chamadas e tokens."""
@@ -30,6 +122,13 @@ class GeminiClient:
             # Tenta acessar os metadados de uso da resposta
             if hasattr(response, 'usage_metadata') and response.usage_metadata:
                 self.total_tokens += response.usage_metadata.total_token_count
+                output_tokens = getattr(
+                    response.usage_metadata, "candidates_token_count", 0
+                )
+                if output_tokens is None:
+                    output_tokens = 0
+                if self.provenance_calls:
+                    self.provenance_calls[-1]["output_tokens"] = output_tokens
         except Exception as e:
             # Não quebra a execução se a contagem falhar
             print(f"Aviso: Não foi possível contabilizar o uso de tokens. Erro: {e}")
@@ -60,10 +159,8 @@ class GeminiClient:
         
         try:
             # Aplica a configuração de temperatura
-            response = self.model.generate_content(
-                prompt, 
-                generation_config=self.generation_config
-            )
+            self.provenance_operation = "infer_tech_from_files"
+            response = self._generate_content(prompt)
             self._update_usage(response) 
             text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
             
@@ -93,11 +190,12 @@ class GeminiClient:
             f"```diff\n{diff_content}\n```"
         )
         try:
-            diff_content_tokens = self.model.count_tokens(contents=[diff_content]).total_tokens
+            self.provenance_operation = "list_commit_code_smells"
+
             response = self.call_gemini_api(prompt)
             text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
             if text_to_parse:
-                return json.loads(text_to_parse), diff_content_tokens
+                return json.loads(text_to_parse)
         except Exception as e:
             print(f"Erro ao listar code smell específicos: {e}, {response.text if 'response' in locals() else 'No response'}")
         
@@ -129,17 +227,18 @@ class GeminiClient:
         )
 
         try:
-            diff_content_tokens = self.model.count_tokens(contents=[diff_content]).total_tokens
-            print(f"    -> Tokens no diff de entrada: {diff_content_tokens}")
+            self.provenance_operation = "analyze_pr_diff"
             response = self.call_gemini_api(prompt)
             text_to_parse = response.text.strip().removeprefix('```json\n').removesuffix('\n```')
 
             data = json.loads(text_to_parse)
+            token_counts = self.get_last_provenance_token_counts()
             
             return {
                 "summary": data.get("summary", "Resumo indisponível."),
                 "code_smells": data.get("code_smells", []),
-                "diff_content_tokens": diff_content_tokens,
+                "input_tokens": token_counts["input_tokens"],
+                "output_tokens": token_counts["output_tokens"],
             }
         except Exception as e:
             print(f"Erro na análise do PR: {e}")
@@ -148,24 +247,13 @@ class GeminiClient:
             return {
                 "summary": "Erro ao gerar análise.",
                 "code_smells": [],
-                "diff_tokens": diff_content_tokens
             }
     
     def call_gemini_api(self, prompt, retry_count=0, max_retries=3):
         """Chamada genérica à API do Gemini com contabilização de uso."""
         try:
-            prompt_tokens = self.model.count_tokens(contents=[prompt]).total_tokens
-            if prompt_tokens > PROMPT_LIMIT:
-                print(f"Aviso: O prompt excede o limite de {PROMPT_LIMIT} tokens. Truncando.")
-                raise ValueError("Prompt muito grande para a API gratuita do Gemini.")
-            
             start = time.time()
-            
-            # Aplica a configuração de temperatura
-            response = self.model.generate_content(
-                prompt, 
-                generation_config=self.generation_config
-            )
+            response = self._generate_content(prompt, attempt=retry_count + 1)
             
             self._update_usage(response)
             end = time.time()

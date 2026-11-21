@@ -77,6 +77,12 @@ python main.py
 
 O script exibirá o progresso da análise no console e, ao final, salvará o resultado completo no arquivo `pr_info_final.json` (este arquivo é ignorado pelo `.gitignore`).
 
+### Proveniência operacional
+
+Cada execução também gera um arquivo separado `provenance_run_<id>.json`, sem acrescentar metadados ao resultado semântico `pr_info_final_*.json`. O registro contém os horários e o status da execução, tempos e tamanhos dos diffs extraídos, e uma entrada por chamada de geração do Gemini com modelo, operação, repositório/PR ou commit, duração, resultado, timeouts e tentativas.
+
+Execuções anteriores à instrumentação não têm esses dados operacionais nos arquivos `pr_info_final_*.json`; métricas como latência, tentativas e timeouts não podem ser reconstruídas a partir deles.
+
 ## 📁 Estrutura do Projeto
 
 ```

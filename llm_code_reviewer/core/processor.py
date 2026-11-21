@@ -1,4 +1,6 @@
 import time 
+import requests
+from .provenance import ProvenanceRecorder
 
 from ..api.github_client import GitHubClient
 from ..api.gemini_client import GeminiClient
@@ -15,16 +17,62 @@ def _map_ecosystem(dependency_file_name):
     else:
         return None
 
+def _extract_diff_or_skip_not_found(
+    provenance, owner, repo, artifact_type, artifact_id, extractor
+):
+    try:
+        return provenance.extract_diff(
+            owner, repo, artifact_type, artifact_id, extractor
+        )
+    except requests.exceptions.HTTPError as error:
+        if error.response is None or error.response.status_code != 404:
+            raise
+        print(
+            f"Aviso: {artifact_type} {artifact_id} não encontrado em "
+            f"{owner}/{repo}; ignorando e continuando."
+        )
+        return None
+
 def run_analysis_pipeline(repos_file_path):
+    github = None
+    gemini = None
+    provenance = ProvenanceRecorder(repos_file_path)
+    try:
+        github = GitHubClient()
+        gemini = GeminiClient()
+        _run_analysis_pipeline(repos_file_path, github, gemini, provenance)
+    except Exception as error:
+        provenance_data = provenance.build_record(
+            gemini.get_provenance_calls() if gemini else [],
+            "failed",
+            error,
+            gemini.get_provenance_config() if gemini else None,
+        )
+        file_handler.save_json(
+            provenance_data, f"provenance_run_{provenance.run_id}.json"
+        )
+        raise
+    else:
+        provenance_data = provenance.build_record(
+            gemini.get_provenance_calls(),
+            "completed",
+            gemini_config=gemini.get_provenance_config(),
+        )
+        file_handler.save_json(
+            provenance_data, f"provenance_run_{provenance.run_id}.json"
+        )
+
+
+def _run_analysis_pipeline(repos_file_path, github, gemini, provenance):
     """Executa o pipeline completo: prioriza commits se existirem, caso contrário processa PRs."""
-    github = GitHubClient()
-    gemini = GeminiClient()
     osv = OsvClient()
     
     repositorios = file_handler.load_repos(repos_file_path)
     if not repositorios:
         print("Nenhum repositório para analisar. Encerrando.")
         return
+
+    provenance.set_repository_specs(repositorios)
 
     all_repos_data = []
 
@@ -51,15 +99,25 @@ def run_analysis_pipeline(repos_file_path):
                 
                 print(f"  -> Analisando Commit {commit_hash[:7]}...")
                 
-                diff_content = ""
-                
                 # Se tiver nome de arquivo, busca só o patch dele. Se não, busca o diff do commit inteiro.
                 if file_name:
                     print(f"    -> Buscando diff apenas para o arquivo: {file_name}")
-                    diff_content = github.get_commit_file_patch(owner, repo_name, commit_hash, file_name)
+                    diff_content = _extract_diff_or_skip_not_found(
+                        provenance,
+                        owner, repo_name, "commit", commit_hash,
+                        lambda: github.get_commit_file_patch(
+                            owner, repo_name, commit_hash, file_name
+                        )
+                    )
                 else:
                     print("    -> Buscando diff completo do commit.")
-                    diff_content = github.get_commit_full_diff(owner, repo_name, commit_hash)
+                    diff_content = _extract_diff_or_skip_not_found(
+                        provenance,
+                        owner, repo_name, "commit", commit_hash,
+                        lambda: github.get_commit_full_diff(
+                            owner, repo_name, commit_hash
+                        )
+                    )
 
                 # 2. Análise do Gemini para Commits
                 total_llm_time_sec = 0.0
@@ -67,7 +125,9 @@ def run_analysis_pipeline(repos_file_path):
 
                 if diff_content:
                     llm_analysis_start_time = time.time()
-                    
+                    gemini.set_provenance_context(
+                        owner, repo_name, "commit", commit_hash
+                    )
                     analysis_result = gemini.list_commit_code_smells(diff_content)
                     
                     llm_analysis_end_time = time.time()
@@ -99,13 +159,19 @@ def run_analysis_pipeline(repos_file_path):
                 for pr in fetched_prs:
                     pr_number = pr['number']
                     print(f"  -> Analisando PR #{pr_number}...")
-                    
-                    diff_content = github.get_pr_diff(owner, repo_name, pr_number)
+                    diff_content = _extract_diff_or_skip_not_found(
+                        provenance,
+                        owner, repo_name, "pull_request", pr_number,
+                        lambda: github.get_pr_diff(owner, repo_name, pr_number)
+                    )
                     total_llm_time_sec = 0.0 
                     analysis = {"summary": "", "code_smells": []}
 
                     if diff_content:
                         llm_analysis_start_time = time.time()  
+                        gemini.set_provenance_context(
+                            owner, repo_name, "pull_request", pr_number
+                        )
                         analysis = gemini.analyze_pr_diff(diff_content) # Método original de PR
                         llm_analysis_end_time = time.time()  
                         total_llm_time_sec = llm_analysis_end_time - llm_analysis_start_time 
@@ -118,6 +184,8 @@ def run_analysis_pipeline(repos_file_path):
                         "author": pr['user']['login'],
                         "summary_gemini": analysis.get("summary"),
                         "code_smells": analysis.get("code_smells"),
+                        "input_tokens": analysis.get("input_tokens", 0),
+                        "output_tokens": analysis.get("output_tokens", 0),
                         "processing_time_sec": total_llm_time_sec 
                     }
                     processed_prs.append(pr_data)
@@ -131,6 +199,9 @@ def run_analysis_pipeline(repos_file_path):
             # 1. Analisar Tecnologia do Repositório
             file_paths = github.get_repo_structure(owner, repo_name)
             if file_paths:
+                gemini.set_provenance_context(
+                    owner, repo_name, "repository", repo_name
+                )
                 tech_info = gemini.infer_tech_from_files(file_paths)
                 print(f"-> Tecnologia inferida: {tech_info['linguagem']}")
             

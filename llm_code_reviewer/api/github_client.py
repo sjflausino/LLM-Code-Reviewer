@@ -57,13 +57,9 @@ class GitHubClient:
     def get_pr_diff(self, owner, repo, pr_number):
         """Busca o diff de um pull request específico."""
         url = f"https://github.com/{owner}/{repo}/pull/{pr_number}.diff"
-        try:
-            response = requests.get(url, headers=self.headers)
-            response.raise_for_status()
-            return response.text
-        except requests.exceptions.RequestException as e:
-            print(f"Erro ao buscar o diff do PR #{pr_number} em {owner}/{repo}: {e}")
-            return None
+        response = requests.get(url, headers=self.headers)
+        response.raise_for_status()
+        return response.text
 
     def get_repo_structure(self, owner, repo):
         """Busca a estrutura de arquivos de um repositório (recursivamente)."""
@@ -116,14 +112,15 @@ class GitHubClient:
     def get_commit_file_patch(self, owner, repo, sha, filename):
         url = f"https://api.github.com/repos/{owner}/{repo}/commits/{sha}"
         response = requests.get(url, headers=self.headers)
-        if response.status_code == 200:
-            data = response.json()
-            for file in data.get('files', []):
-                if file['filename'] == filename:
-                    return file.get('patch', '') # Retorna o diff específico
+        response.raise_for_status()
+        data = response.json()
+        for file in data.get('files', []):
+            if file['filename'] == filename:
+                return file.get('patch', '') # Retorna o diff específico
         return None
 
     def get_commit_full_diff(self, owner, repo, sha):
         url = f"https://github.com/{owner}/{repo}/commit/{sha}.diff"
         response = requests.get(url, headers=self.headers)
-        return response.text if response.status_code == 200 else None
+        response.raise_for_status()
+        return response.text
