@@ -7,6 +7,7 @@ load_dotenv()
 # Chaves de API
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+GEMINI_MODEL_NAME = os.getenv('GEMINI_MODEL_NAME', 'gemini-3.1-flash-lite')
 GEMINI_TEMPERATURE = os.getenv('GEMINI_TEMPERATURE', 0.2)
 
 try:

@@ -6,11 +6,12 @@ import json
 from .. import config
 
 PROMPT_LIMIT = 250000
+GEMINI_REQUEST_TIMEOUT_SECONDS = 60
 
 class GeminiClient:
     def __init__(self):
         genai.configure(api_key=config.GEMINI_API_KEY)
-        self.model_name = 'gemini-3.1-flash-lite'
+        self.model_name = config.GEMINI_MODEL_NAME
         self.model = genai.GenerativeModel(self.model_name)
         
         self.temperature = config.GEMINI_TEMPERATURE
@@ -81,12 +82,23 @@ class GeminiClient:
         start = time.perf_counter()
         input_tokens = 0
         try:
-            input_tokens = self.model.count_tokens(contents=[prompt]).total_tokens
+            input_tokens = self.model.count_tokens(
+                contents=[prompt],
+                request_options={
+                    "timeout": GEMINI_REQUEST_TIMEOUT_SECONDS,
+                    "retry": None,
+                },
+            ).total_tokens
             if input_tokens > PROMPT_LIMIT:
                 raise ValueError("Prompt muito grande para a API gratuita do Gemini.")
+            
             response = self.model.generate_content(
                 prompt,
-                generation_config=self.generation_config
+                generation_config=self.generation_config,
+                request_options={
+                    "timeout": GEMINI_REQUEST_TIMEOUT_SECONDS,
+                    "retry": None,
+                },
             )
         except Exception as error:
             self._record_failed_provenance_call(

@@ -13,7 +13,7 @@ pr_info_final.json
 pr_info_simplificado.json
 pr_info_simplificado_com_resumo.json
 sonar_report*.txt
-provenance_run_*.json
+provenance_run_*
 
 # Diretório de dados temporários (diffs baixados) 
 diffs/
