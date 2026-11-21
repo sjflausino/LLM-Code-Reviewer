@@ -11,7 +11,7 @@ class GeminiClient:
     def __init__(self):
         # 'config' agora está definido e 'GEMINI_API_KEY' existe no config.py
         genai.configure(api_key=config.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-2.5-flash') 
+        self.model = genai.GenerativeModel('gemini-3.1-flash-lite') 
         
         # Cria a configuração de geração usando a temperatura definida no config
         # Se config.GEMINI_TEMPERATURE não existir, usa 0.2 como fallback seguro
@@ -143,6 +143,7 @@ class GeminiClient:
             }
         except Exception as e:
             print(f"Erro na análise do PR: {e}")
+            print("Resposta recebida:", response.text if 'response' in locals() else 'No response')
 
             return {
                 "summary": "Erro ao gerar análise.",
@@ -172,6 +173,7 @@ class GeminiClient:
             return response
             
         except exceptions.GoogleAPICallError as e:
+            print("entrou aqui ", e)
             status = getattr(e, "code", None)
             message = str(e)
 
