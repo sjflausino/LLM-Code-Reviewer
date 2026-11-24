@@ -77,9 +77,27 @@ python main.py
 
 O script exibirá o progresso da análise no console e, ao final, salvará o resultado completo no arquivo `pr_info_final.json` (este arquivo é ignorado pelo `.gitignore`).
 
-### Proveniência operacional
+## Proveniência operacional (opcional)
 
-Cada execução também gera um arquivo separado `provenance_run_<id>.json`, sem acrescentar metadados ao resultado semântico `pr_info_final_*.json`. O registro contém os horários e o status da execução, tempos e tamanhos dos diffs extraídos, e uma entrada por chamada de geração do Gemini com modelo, operação, repositório/PR ou commit, duração, resultado, timeouts e tentativas.
+O pipeline principal gera um arquivo separado `provenance_run_<id>.json`, sem acrescentar metadados ao resultado semântico `pr_info_final_*.json`. Converter esse registro em visualizações PROV é opcional e não é necessário para executar a análise principal.
+
+### Dependências opcionais
+
+Para gerar os arquivos PROV-JSON-LD e SVG, instale o pacote Python `prov` e o Graphviz (incluindo o executável `dot` disponível no `PATH`):
+
+```bash
+pip install "prov>=3.3.0,<4.0"
+```
+
+O Graphviz deve ser instalado separadamente pelo instalador do sistema operacional. No Windows, instale o Graphviz e adicione a pasta `bin` (por exemplo, `C:\Program Files\Graphviz\bin`) ao `PATH`.
+
+Com as dependências instaladas, converta o registro:
+
+```bash
+python provenance_graph provenance_run_<id>.json
+```
+
+O comando cria `provenance_run_<id>.prov.jsonld` e `provenance_run_<id>.prov.svg` ao lado do arquivo de entrada.
 
 Execuções anteriores à instrumentação não têm esses dados operacionais nos arquivos `pr_info_final_*.json`; métricas como latência, tentativas e timeouts não podem ser reconstruídas a partir deles.
 
