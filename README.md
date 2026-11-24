@@ -79,7 +79,7 @@ O script exibirá o progresso da análise no console e, ao final, salvará o res
 
 ## Proveniência operacional (opcional)
 
-O pipeline principal gera um arquivo separado `provenance_run_<id>.json`, sem acrescentar metadados ao resultado semântico `pr_info_final_*.json`. Converter esse registro em visualizações PROV é opcional e não é necessário para executar a análise principal.
+O pipeline principal gera um arquivo separado `provenance_run_<timestamp>.json`, usando a mesma data completa do resultado `pr_info_final_<timestamp>.json`, sem acrescentar metadados ao resultado semântico. Converter esse registro em visualizações PROV é opcional e não é necessário para executar a análise principal.
 
 ### Dependências opcionais
 
@@ -94,10 +94,10 @@ O Graphviz deve ser instalado separadamente pelo instalador do sistema operacion
 Com as dependências instaladas, converta o registro:
 
 ```bash
-python provenance_graph provenance_run_<id>.json
+python provenance_graph provenance_run_<timestamp>.json
 ```
 
-O comando cria `provenance_run_<id>.prov.jsonld` e `provenance_run_<id>.prov.svg` ao lado do arquivo de entrada.
+O comando cria `provenance_run_<timestamp>.prov.jsonld` e `provenance_run_<timestamp>.prov.svg` ao lado do arquivo de entrada.
 
 Execuções anteriores à instrumentação não têm esses dados operacionais nos arquivos `pr_info_final_*.json`; métricas como latência, tentativas e timeouts não podem ser reconstruídas a partir deles.
 

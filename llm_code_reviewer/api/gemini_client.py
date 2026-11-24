@@ -6,7 +6,7 @@ import json
 from .. import config
 
 PROMPT_LIMIT = 250000
-GEMINI_REQUEST_TIMEOUT_SECONDS = 60
+GEMINI_REQUEST_TIMEOUT_SECONDS = config.GEMINI_REQUEST_TIMEOUT_SECONDS
 
 class GeminiClient:
     def __init__(self):

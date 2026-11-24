@@ -1,6 +1,5 @@
 import time
 from datetime import datetime, timezone
-from uuid import uuid4
 
 
 class ProvenanceRecorder:
@@ -8,7 +7,7 @@ class ProvenanceRecorder:
     def __init__(self, repos_file_path):
         self.started_at = datetime.now(timezone.utc)
         self._start_counter = time.perf_counter()
-        self.run_id = str(uuid4())
+        self.run_id = self.started_at.astimezone().strftime("%Y%m%d_%H%M%S")
         self.github_diff_extractions = []
         self.repository_specs = []
 

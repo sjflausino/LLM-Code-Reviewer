@@ -251,8 +251,7 @@ def _run_analysis_pipeline(repos_file_path, github, gemini, provenance):
         all_repos_data.append(repo_data)
 
     # 5. Salvar o resultado final
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    final_output_path = f"pr_info_final_{timestamp}.json"
+    final_output_path = f"pr_info_final_{provenance.run_id}.json"
 
     total_calls = gemini.get_total_calls()
     total_tokens = gemini.get_total_tokens()

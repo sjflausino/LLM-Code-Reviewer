@@ -256,7 +256,7 @@ def convert_provenance_file(input_path):
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument("input", help="provenance_run_<id>.json")
+    parser.add_argument("input", help="provenance_run_<timestamp>.json")
     args = parser.parse_args(argv)
     output = convert_provenance_file(args.input)
     print(f"PROV-JSON-LD graph saved to {output}")
